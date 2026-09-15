@@ -1,0 +1,163 @@
+ESTRUCTURA Y ARQUITECTURA DE LA APLICACIÓN
+=========================================
+
+1. INTRODUCCIÓN
+---------------
+Esta app está creada con Flutter, que usa widgets para construir toda la interfaz.
+En Flutter, cada pantalla, botón, texto, lista o contenedor es un widget.
+La lógica de la app se organiza en archivos dentro de la carpeta lib.
+
+2. CARPETA PRINCIPAL
+--------------------
+La carpeta principal del proyecto es:
+
+- lib/
+
+Dentro de esta carpeta se encuentran las pantallas y la lógica de la app.
+
+3. ARCHIVO PRINCIPAL
+--------------------
+Archivo:
+- lib/main.dart
+
+Este archivo es el punto de entrada de la aplicación.
+Es el primero que se ejecuta cuando la app inicia.
+
+Aquí se hace lo siguiente:
+- se crea la app con runApp(...)
+- se configura el tema visual
+- se define la pantalla inicial que se mostrará al abrir la app
+
+En este proyecto, la pantalla principal está conectada desde main.dart.
+
+4. PANTALLAS
+------------
+La app tiene pantallas separadas en carpetas y archivos.
+Por ejemplo:
+
+- lib/screens/home_screen.dart
+- lib/screens/second_screen.dart
+
+Cada archivo representa una vista o pantalla de la aplicación.
+
+Ejemplo:
+- HomeScreen: pantalla de inicio
+- SecondScreen: pantalla de detalle o segunda vista
+
+Estas pantallas son widgets que devuelven un Scaffold, que es la estructura base
+para una pantalla en Flutter (AppBar, body, BottomNavigationBar, etc).
+
+5. FLUJO DE LA APP
+------------------
+La app sigue este flujo básico:
+
+1. Se ejecuta main.dart
+2. Se crea MyApp
+3. MyApp devuelve un MaterialApp
+4. MaterialApp establece la pantalla inicial: HomeScreen
+5. HomeScreen muestra contenido y permite navegar a otras vistas
+6. Navegación se hace con Navigator.push(...) y Navigator.pop(...)
+
+6. ¿QUÉ ES UN WIDGET?
+---------------------
+En Flutter, todo es un widget.
+
+Ejemplos:
+- Text
+- Column
+- Row
+- Container
+- ElevatedButton
+- AppBar
+- Scaffold
+- BottomNavigationBar
+
+Los widgets pueden ser:
+- StatelessWidget: no cambian con el tiempo
+- StatefulWidget: cambian cuando ocurre un evento o actualización de estado
+
+En este proyecto, por ejemplo, HomeScreen usa StatefulWidget porque tiene
+estado para cambiar la pestaña activa del BottomNavigationBar.
+
+7. ESTRUCTURA DEL HOME SCREEN
+----------------------------
+La pantalla principal tiene varias partes:
+
+- AppBar: encabezado superior
+- BottomNavigationBar: menú inferior
+- body: contenido principal
+- ListView: lista de stands o elementos
+- Cards: cada tarjeta representa un stand
+- Botón o tap: permite abrir la segunda vista
+
+8. ESTRUCTURA DE LA SEGUNDA PANTALLA
+------------------------------------
+La segunda pantalla es un detalle de un stand.
+Muestra:
+
+- imagen o icono del stand
+- nombre
+- tipo de negocio
+- valoración
+- distancia
+- descripción
+- botón para volver atrás
+
+9. NAVEGACIÓN ENTRE PANTALLAS
+----------------------------
+Para abrir otra vista se usa Navigator.push:
+
+Navigator.push(
+  context,
+  MaterialPageRoute(
+    builder: (context) => const SecondScreen(),
+  ),
+);
+
+Para volver a la pantalla anterior se usa:
+
+Navigator.pop(context);
+
+Esto permite que la app tenga un flujo de pantallas con historia de navegación.
+
+10. ¿CÓMO SE ORGANIZA LA APLICACIÓN?
+------------------------------------
+La arquitectura es simple y modular:
+
+- main.dart: levanta la app
+- screens/: contiene pantallas
+- widgets/: podría contener componentes reutilizables en el futuro
+- models/: podría guardar estructuras de datos de negocio
+- services/: podría guardar servicios o llamadas a APIs
+
+En una app más grande, esta estructura se puede ampliar para mantener el código limpio.
+
+11. IDEAL PARA MODIFICAR
+-----------------------
+Si quieres personalizar la app, las zonas más importantes son:
+
+- main.dart: cambia tema, app name y pantalla inicial
+- home_screen.dart: cambia diseño, lista de stands, menú inferior
+- second_screen.dart: cambia detalle del stand, textos e información
+
+12. CONCLUSIÓN
+--------------
+La app sigue una estructura típica de Flutter:
+- una entrada principal en main.dart
+- varias pantallas en lib/screens
+- widgets para construir la interfaz
+- navegación con Navigator
+- archivos separados para mantener el código más ordenado
+
+Esto permite que la app sea fácil de escalar, organizar y modificar.
+
+13. RECOMENDACIÓN FINAL
+----------------------
+Para continuar desarrollando la aplicación, lo más ordenado es mantener esta separación:
+
+- screen/: pantallas
+- model/: datos de negocio
+- service/: lógica de carga de datos
+- widget/: componentes reutilizables
+
+Así la app crecerá sin volverse caótica.
