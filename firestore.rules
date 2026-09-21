@@ -1,0 +1,60 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.admin == true;
+    }
+
+    // Usuarios
+
+    match /usuarios/{uid} {
+      allow read: if isAuthenticated() && (request.auth.uid == uid || isAdmin());
+
+      // El usuario solo puede crear SU PROPIO documento.
+      allow create: if isAuthenticated()
+        && request.auth.uid == uid
+        && request.resource.data.tipo == 'jugador';
+
+      // Puede actualizar su documento sin tocar el campo tipo.
+      allow update: if isAdmin()
+        || (isAuthenticated() && request.auth.uid == uid
+            && request.resource.data.tipo == resource.data.tipo);
+
+      allow delete: if isAdmin();
+    }
+
+    // Experiencias (= misiones). El nombre de la colección coincide con
+    // COLLECTION = "experiences" de firestoreService.js.
+
+    match /experiences/{id_experiencia} {
+      // TEMPORAL (Sprint 1): el login por PIN está desactivado, así que el panel
+      // admin no tiene el claim `admin`. Se abre lectura/escritura de esta colección.
+      // TODO(sprint PIN): borrar estas dos líneas y restaurar las reglas de abajo.
+      allow read, write: if true;
+
+      // --- Reglas definitivas (restaurar cuando vuelva el PIN) ---
+      // allow read: if resource.data.activa == true || isAdmin();
+      // allow create, update, delete: if isAdmin();
+
+      match /desafios/{id_desafio} {
+        allow read: if isAuthenticated();
+        allow write: if isAdmin();
+
+        match /secreto/respuesta {
+          allow read, write: if isAdmin();
+        }
+      }
+
+      match /elementos_fisicos/{id_elemento} {
+        allow read: if isAuthenticated();
+        allow write: if isAdmin();
+      }
+    }
+  }
+}

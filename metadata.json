@@ -1,0 +1,7 @@
+{
+  "name": "StandHunter",
+  "description": "Plataforma web (PWA) de desafíos interactivos en tiempo real para stands y eventos. Sprint 1: atracción e inicio, registro rápido y panel básico de experiencias.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
