@@ -9,6 +9,7 @@ import { MissionsScreen } from './screens/MissionsScreen.jsx';
 import { ErrorBanner } from './components/ErrorBanner.jsx';
 import { ComingSoonScreen } from './screens/ComingSoonScreen.jsx';
 import { AdminLoginModal } from './components/AdminLoginModal.jsx';
+import { startParticipation, finishParticipation } from './services/participationService.js';
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -16,6 +17,7 @@ export default function App() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [activeTab, setActiveTab] = useState('misiones');
+  const [activeParticipation, setActiveParticipation] = useState(null); 
 
   const [participant, setParticipant] = useState({
     id: 'SH-9428',
@@ -69,10 +71,46 @@ export default function App() {
     setShowOnboarding(true);
   }, []);
 
-  // ESC01-ESC12 (motor de escape room) llegan en Sprints 2 y 3.
-  const handleStartMission = (mission) => {
-    setSelectedMission(mission);
-    setActiveTab('escaner-ar');
+  // ESC01-ESC12 (motor de escape room) llegan en Sprints posteriores.
+  const handleStartMission = async (mission) => {
+  setSelectedMission(mission);
+  setActiveTab('escaner-ar');
+  try {
+      const { id, startedAtMs } = await startParticipation({
+        usuarioId: participant.id,
+        usuarioNickname: participant.nickname,
+        experienciaId: mission.id,
+        experienciaNombre: mission.nombre,
+      });
+      setActiveParticipation({ id, startedAtMs });
+    } catch (err) {
+      setApiError({
+        message: describeFirestoreError(err),
+        code: err?.code ?? 'FIRESTORE',
+        isNetworkError: err?.code === 'unavailable',
+      });
+    }
+};
+
+const handleConcludeMission = async () => {
+    if (activeParticipation) {
+      try {
+        await finishParticipation(activeParticipation.id, {
+          estado: 'completada',
+          startedAtMs: activeParticipation.startedAtMs,
+          puntajeFinal: selectedMission?.puntos ?? null,
+        });
+      } catch (err) {
+        setApiError({
+          message: describeFirestoreError(err),
+          code: err?.code ?? 'FIRESTORE',
+          isNetworkError: err?.code === 'unavailable',
+        });
+      }
+    }
+    setActiveParticipation(null);
+    setSelectedMission(null);
+    setActiveTab('misiones');
   };
 
   return (
@@ -118,9 +156,9 @@ export default function App() {
                 title={selectedMission?.nombre ?? 'Escáner de Entorno y Visor de IA'}
                 sprintLabel="Sprint 2"
                 onBack={() => setActiveTab('misiones')}
+                onConclude={activeParticipation ? handleConcludeMission : undefined}
               />
             )}
-
             {activeTab === 'asistente-ia' && (
               <ComingSoonScreen
                 title="Chatbot de Asistencia IA"

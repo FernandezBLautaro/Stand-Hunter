@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { DIFICULTAD_LABEL } from '../services/firestoreService.js';
-
 // Estilo visual por dificultad (única variación entre tarjetas).
 const ESTILO = {
   facil: {
@@ -34,10 +33,15 @@ const FILTROS = [
   { id: 'corta', label: '≤ 10 min', icono: 'timer' },
 ];
 
-const coincide = (filtro, exp) => {
-  if (filtro === 'todas') return true;
-  if (filtro === 'corta') return exp.duracion <= 10;
-  return exp.dificultad === filtro;
+const coincide = (filtro, tematica, exp) => {
+  const matchFiltro =
+    filtro === 'todas' ? true :
+    filtro === 'corta' ? exp.duracion <= 10 :
+    exp.dificultad === filtro;
+
+  const matchTematica = tematica === 'todas' || exp.tematica === tematica;
+
+  return matchFiltro && matchTematica;
 };
 
 /**
@@ -50,8 +54,14 @@ const coincide = (filtro, exp) => {
  */
 export const MissionsScreen = ({ missions, participant, onStartMission, isLoading = false }) => {
   const [filtro, setFiltro] = useState('todas');
+  const [tematica, setTematica] = useState('todas');
 
-  const visibles = missions.filter((m) => coincide(filtro, m));
+  const tematicas = useMemo(
+    () => [...new Set(missions.map((m) => m.tematica).filter(Boolean))].sort(),
+    [missions]
+  );
+
+  const visibles = missions.filter((m) => coincide(filtro, tematica, m));
 
   return (
     <div className="flex flex-col w-full max-w-md mx-auto px-4 pt-2 pb-24 relative select-none">
@@ -82,25 +92,42 @@ export const MissionsScreen = ({ missions, participant, onStartMission, isLoadin
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 mb-4">
+      {/* Filtros de dificultad/tiempo */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 mb-3">
         {FILTROS.map((f) => (
           <button
             key={f.id}
             type="button"
             aria-pressed={filtro === f.id}
             onClick={() => setFiltro(f.id)}
-            className={`px-3 py-1.5 rounded-full font-label-md text-[12px] tracking-wide whitespace-nowrap flex items-center gap-1 transition-all cursor-pointer ${
-              filtro === f.id
-                ? 'bg-[#00eefc] text-[#002022] font-bold shadow-[0_0_12px_rgba(0,238,252,0.4)]'
-                : 'bg-[#1c192f] text-[#c9c5d0] hover:text-white border border-white/5'
-            }`}
+            className={`px-3 py-1.5 rounded-full font-label-md text-[12px] tracking-wide whitespace-nowrap flex items-center gap-1 transition-all cursor-pointer ${filtro === f.id
+              ? 'bg-[#00eefc] text-[#002022] font-bold shadow-[0_0_12px_rgba(0,238,252,0.4)]'
+              : 'bg-[#1c192f] text-[#c9c5d0] hover:text-white border border-white/5'
+              }`}
           >
             {f.icono && <span className="material-symbols-outlined text-[14px]">{f.icono}</span>}
             <span>{f.label}</span>
           </button>
         ))}
       </div>
+
+      {/* Filtro por temática */}
+      {tematicas.length > 0 && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="material-symbols-outlined text-[16px] text-[#00eefc]">sell</span>
+          <select
+            value={tematica}
+            onChange={(e) => setTematica(e.target.value)}
+            aria-label="Filtrar por temática"
+            className="flex-1 h-9 bg-[#1c192f] border border-white/10 rounded-full px-3 text-[#e5defe] font-label-md text-[12px] focus:outline-none focus:border-[#00eefc] cursor-pointer"
+          >
+            <option value="todas">Todas las temáticas</option>
+            {tematicas.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Estados vacíos */}
       {isLoading && missions.length === 0 && (
@@ -182,6 +209,12 @@ export const MissionsScreen = ({ missions, participant, onStartMission, isLoadin
                   <span className="material-symbols-outlined text-[14px]">assignment</span>
                   {cantDesafios} {cantDesafios === 1 ? 'desafío' : 'desafíos'}
                 </span>
+                {exp.tematica && (
+                  <span className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">sell</span>
+                    {exp.tematica}
+                  </span>
+                )}
               </div>
 
               <button

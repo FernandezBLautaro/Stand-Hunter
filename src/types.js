@@ -36,6 +36,7 @@
  * @property {number} puntos
  * @property {boolean} activa
  * @property {string} locacion
+ * @property {string} tematica
  * @property {string} imagenUrl
  * @property {string} creadoEl
  * 

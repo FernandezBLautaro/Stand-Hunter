@@ -1,3 +1,5 @@
+import { StandHunterLogo } from './StandHunterLogo';
+
 const tabTitles = {
   misiones: 'Misiones',
   'escaner-ar': 'Escáner AR',
@@ -19,11 +21,7 @@ export const Header = ({ activeTab, participant, latencyMs = 12, onOpenProfile }
       <div className="h-16 px-4 max-w-lg mx-auto flex items-center justify-between gap-2">
         {/* Brand & Section Label */}
         <div className="flex items-center gap-2.5 min-w-0">
-          <img
-            alt="StandHunter Visor Logo"
-            className="h-8 w-auto object-contain flex-shrink-0 drop-shadow-[0_0_8px_rgba(0,238,252,0.5)]"
-            src="https://lh3.googleusercontent.com/aida/AEtjO1UYGKDYmyUHAYKirQ7_-SIxGDWVFpSnOSFOzvJpBjt7bj6i6rx5E1zPRmi4gxE2nQHYlKixEZr9WPOZLTy8Q0Jfn0Pwh0gnOr7lReMufRaYQiNPihwZfUVZz_KkSkpVythtMT8p5mDZt5Mt9Ec5Oa5EuV5TOC1SQvpSQ9f7tZnuAu_7Omdymw_hIuicL9lhhwYZ60KCy0_dsBVu-DM-R04ItRaXQZlAsRgJq-lvHTH6ysbMeFUup2CMkwE"
-          />
+          <StandHunterLogo size={36} animated={true} />
           <div className="flex flex-col min-w-0">
             <span className="font-headline-sm text-[18px] text-[#e5defe] font-bold tracking-tight truncate leading-none">
               StandHunter

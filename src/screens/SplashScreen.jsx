@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-
+import { StandHunterLogo } from '../components/StandHunterLogo';
 /**
  * @param {{ onComplete: () => void }} props
  */
@@ -88,11 +88,7 @@ export const SplashScreen = ({ onComplete }) => {
           <div className="relative w-[140px] h-[140px] rounded-2xl bg-[#0e0b21]/90 backdrop-blur-md p-2 flex items-center justify-center shadow-[0_0_35px_rgba(0,238,252,0.35)] overflow-hidden border border-[#00eefc]/30">
             {/* Interior Scanner Beam Sweep */}
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#00eefc]/20 to-transparent -translate-y-full animate-[pulse_2.2s_ease-in-out_infinite]" />
-            <img
-              alt="StandHunter Visor Logo"
-              className="w-full h-full object-contain relative z-10 drop-shadow-[0_0_12px_rgba(0,238,252,0.65)]"
-              src="https://lh3.googleusercontent.com/aida/AEtjO1UYGKDYmyUHAYKirQ7_-SIxGDWVFpSnOSFOzvJpBjt7bj6i6rx5E1zPRmi4gxE2nQHYlKixEZr9WPOZLTy8Q0Jfn0Pwh0gnOr7lReMufRaYQiNPihwZfUVZz_KkSkpVythtMT8p5mDZt5Mt9Ec5Oa5EuV5TOC1SQvpSQ9f7tZnuAu_7Omdymw_hIuicL9lhhwYZ60KCy0_dsBVu-DM-R04ItRaXQZlAsRgJq-lvHTH6ysbMeFUup2CMkwE"
-            />
+            <StandHunterLogo size={120} animated={true} />
           </div>
 
           {/* Corner Crosshair Micro-Accents */}

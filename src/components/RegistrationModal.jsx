@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { registerParticipant } from '../services/api.js';
+import { registerParticipant } from '../services/firestoreService.js';
 
 const randomAliases = [
   'CyberHunter_99',
@@ -45,7 +45,6 @@ export const RegistrationModal = ({ profile, isOpen, onClose, onSaveProfile }) =
     setErrorMsg('');
 
     try {
-      // Llamada a la API vía Axios
       const result = await registerParticipant({
         nickname: nickname.trim(),
         email: email.trim(),

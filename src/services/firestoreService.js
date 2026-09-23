@@ -47,6 +47,7 @@ export const DIFICULTADES = ["facil", "media", "dificil"];
 export const DIFICULTAD_LABEL = { facil: "Fácil", media: "Media", dificil: "Difícil" };
 const DEFAULT_DIFICULTAD = DIFICULTADES[0];
 
+
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
 /* ------------------------------------------------------------------ */
@@ -118,6 +119,9 @@ function sanitize(data, { partial = false } = {}) {
   if (!partial || has("locacion")) {
     out.locacion = String(data.locacion ?? "").trim().slice(0, 120);
   }
+  if (!partial || has("tematica")) {
+  out.tematica = String(data.tematica ?? "").trim().slice(0, 40);
+  }
   if (!partial || has("imagenUrl")) {
     const url = String(data.imagenUrl ?? "").trim().slice(0, 500);
     out.imagenUrl = /^https?:\/\//.test(url) ? url : "";
@@ -156,7 +160,7 @@ const buildQuery = ({ onlyActive = false } = {}) =>
   onlyActive ? query(experiencesRef(), where("activa", "==", true)) : experiencesRef();
 
 /* ------------------------------------------------------------------ */
-/* READ                                                                */
+/* READ                                                               */
 /* ------------------------------------------------------------------ */
 
 /** Lectura única. `onlyActive: true` para el lado participante. */
@@ -182,9 +186,15 @@ export async function getExperience(id) {
   return snap.exists() ? fromDoc(snap) : null;
 }
 
-/* ------------------------------------------------------------------ */
-/* CREATE                                                              */
-/* ------------------------------------------------------------------ */
+/**
+ * DAT01 — Registro rápido de participante (tabla USUARIO).
+ * @param {{ nickname: string, email?: string, specialty: string }} data
+ * @returns {Promise<any>}
+ */
+export async function registerParticipant(data) {
+  const response = await apiClient.post('/participant/register', data);
+  return response.data.participant;
+}
 
 /**
  * Crea una experiencia. Nace INACTIVA para que el admin la revise antes de
@@ -202,7 +212,7 @@ export async function createExperience(data) {
 }
 
 /* ------------------------------------------------------------------ */
-/* UPDATE                                                              */
+/* UPDATE                                                             */
 /* ------------------------------------------------------------------ */
 
 /** Actualiza solo los campos enviados. */
@@ -219,7 +229,7 @@ export async function setExperienceActive(id, activa) {
 }
 
 /* ------------------------------------------------------------------ */
-/* DELETE                                                              */
+/* DELETE                                                             */
 /* ------------------------------------------------------------------ */
 
 export async function deleteExperience(id) {
@@ -227,7 +237,7 @@ export async function deleteExperience(id) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Seed (opcional: datos de ejemplo para colección vacía)              */
+/* Seed (datos de ejemplo para colección vacía)                       */
 /* ------------------------------------------------------------------ */
 
 export async function seedExperiences() {
@@ -240,6 +250,7 @@ export async function seedExperiences() {
       dificultad: "media",
       puntos: 1000,
       locacion: "Stand A — Sector Cian",
+      tematica: "Ciencia",
       imagenUrl: "",
       activa: true,
       desafios: [
@@ -283,6 +294,7 @@ export async function seedExperiences() {
       dificultad: "facil",
       puntos: 600,
       locacion: "Stand A — Sector Magenta",
+      tematica: "Tecnología",
       imagenUrl: "",
       activa: true,
       desafios: [],
@@ -295,6 +307,7 @@ export async function seedExperiences() {
       dificultad: "dificil",
       puntos: 1500,
       locacion: "Stand B — Zona Segura",
+      tematica: "Espionaje",
       imagenUrl: "",
       activa: false,
       desafios: [],

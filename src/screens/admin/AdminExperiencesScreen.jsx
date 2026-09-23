@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 // Validacion futura
 // import {
 //   subscribeAdminState,
@@ -7,24 +7,12 @@ import { useState, useRef, useEffect, useCallback } from "react";
 //   describeAuthError,
 // } from "../../services/adminService.js";
 import {
-  subscribeExperiences,
-  createExperience,
-  updateExperience,
-  setExperienceActive,
-  deleteExperience,
-  seedExperiences,
-  newChallenge,
-  describeFirestoreError,
-  TIPOS_VALIDACION,
-  DIFICULTADES,
-  DIFICULTAD_LABEL,
+  subscribeExperiences, createExperience, updateExperience, setExperienceActive, deleteExperience, seedExperiences,
+  newChallenge, describeFirestoreError, TIPOS_VALIDACION, DIFICULTADES, DIFICULTAD_LABEL
 } from "../../services/firestoreService.js";
+import { subscribeParticipations, summarizeByExperience } from "../../services/participationService.js";
 
-const TIPO_LABEL = {
-  pregunta: "Pregunta",
-  codigo: "Código QR",
-  voz: "Voz",
-};
+const TIPO_LABEL = { pregunta: "Pregunta", codigo: "Código QR", voz: "Voz" };
 
 const DIFICULTAD_ICONO = { facil: "signal_cellular_1_bar", media: "signal_cellular_3_bar", dificil: "signal_cellular_4_bar" };
 
@@ -36,6 +24,7 @@ const EMPTY_DRAFT = {
   dificultad: DIFICULTADES[0],
   puntos: 500,
   locacion: "",
+  tematica: "",
   imagenUrl: "",
   desafios: [],
 };
@@ -191,16 +180,18 @@ function AdminPanel({ onClose }) {
   const [experiencias, setExperiencias] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [tab, setTab] = useState("a");
   const [expandedId, setExpandedId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-
   const [toast, setToast] = useState({ visible: false, mensaje: "", error: false });
   const toastTimer = useRef(null);
+  const [participations, setParticipations] = useState([]);
+  const statsByExp = useMemo(() => summarizeByExperience(participations), [participations]);
+  useEffect(() => subscribeParticipations(setParticipations, () => { }), []);
+
 
   useEffect(() => () => clearTimeout(toastTimer.current), []);
 
@@ -236,6 +227,7 @@ function AdminPanel({ onClose }) {
       dificultad: exp.dificultad ?? DIFICULTADES[0],
       puntos: exp.puntos ?? 500,
       locacion: exp.locacion ?? "",
+      tematica: exp.tematica ?? "",
       imagenUrl: exp.imagenUrl ?? "",
       desafios: (exp.desafios ?? []).map((d) => ({ ...d })),
     });
@@ -282,7 +274,7 @@ function AdminPanel({ onClose }) {
       return { ...d, desafios: next };
     });
 
-  /* ---------- acciones Firestore ---------- */
+  /* acciones Firestore */
 
   const saveChanges = async () => {
     if (!draft.nombre.trim()) {
@@ -402,16 +394,14 @@ function AdminPanel({ onClose }) {
       <div
         role="status"
         aria-live="polite"
-        className={`fixed top-20 left-4 right-4 max-w-[448px] mx-auto z-[70] transition-all duration-300 ${
-          toast.visible ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 -translate-y-2 pointer-events-none"
-        }`}
+        className={`fixed top-20 left-4 right-4 max-w-[448px] mx-auto z-[70] transition-all duration-300 ${toast.visible ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 -translate-y-2 pointer-events-none"
+          }`}
       >
         <div
-          className={`px-4 py-2.5 rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.5)] flex items-center gap-2 backdrop-blur-md ${
-            toast.error
-              ? "bg-[#3e001a]/95 border border-[#ff027f]/60 text-[#ffdad6]"
-              : "bg-[#35324a]/95 text-[#e5defe]"
-          }`}
+          className={`px-4 py-2.5 rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.5)] flex items-center gap-2 backdrop-blur-md ${toast.error
+            ? "bg-[#3e001a]/95 border border-[#ff027f]/60 text-[#ffdad6]"
+            : "bg-[#35324a]/95 text-[#e5defe]"
+            }`}
         >
           <span className={`material-symbols-outlined text-[20px] ${toast.error ? "text-[#ff027f]" : "text-[#7df4ff]"}`}>
             {toast.error ? "error" : "check_circle"}
@@ -475,18 +465,16 @@ function AdminPanel({ onClose }) {
             <div
               key={exp.id}
               onClick={() => openEditor(exp)}
-              className={`cursor-pointer group relative transition-all duration-200 rounded-xl p-4 ${
-                exp.activa
-                  ? "bg-[#201d33]/85 hover:bg-[#2a273e] shadow-md"
-                  : "bg-[#201d33]/50 hover:bg-[#201d33]/70 shadow-sm"
-              }`}
+              className={`cursor-pointer group relative transition-all duration-200 rounded-xl p-4 ${exp.activa
+                ? "bg-[#201d33]/85 hover:bg-[#2a273e] shadow-md"
+                : "bg-[#201d33]/50 hover:bg-[#201d33]/70 shadow-sm"
+                }`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <div
-                    className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden ${
-                      exp.activa ? "bg-[#35324a] text-[#7df4ff]" : "bg-[#201d33] text-[#928f99]"
-                    }`}
+                    className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden ${exp.activa ? "bg-[#35324a] text-[#7df4ff]" : "bg-[#201d33] text-[#928f99]"
+                      }`}
                   >
                     {exp.imagenUrl ? (
                       <img src={exp.imagenUrl} alt="" className="w-full h-full object-cover" />
@@ -500,11 +488,11 @@ function AdminPanel({ onClose }) {
                     <span className={`text-[11px] ${exp.activa ? "text-[#00eefc]" : "text-[#928f99]"}`}>
                       {DIFICULTAD_LABEL[exp.dificultad] ?? exp.dificultad}
                       {exp.locacion ? ` · ${exp.locacion}` : ""}
+                      {exp.tematica ? ` · ${exp.tematica}` : ""}
                     </span>
                     <h2
-                      className={`font-headline-sm text-[16px] font-semibold truncate leading-tight ${
-                        exp.activa ? "group-hover:text-[#7df4ff] transition-colors" : ""
-                      }`}
+                      className={`font-headline-sm text-[16px] font-semibold truncate leading-tight ${exp.activa ? "group-hover:text-[#7df4ff] transition-colors" : ""
+                        }`}
                     >
                       {exp.nombre}
                     </h2>
@@ -518,14 +506,12 @@ function AdminPanel({ onClose }) {
                     aria-checked={exp.activa}
                     aria-label={exp.activa ? "Ocultar en la PWA" : "Mostrar en la PWA"}
                     onClick={() => toggleActive(exp)}
-                    className={`w-12 h-7 rounded-full p-0.5 transition-all duration-200 flex items-center cursor-pointer ${
-                      exp.activa ? "bg-[#ff027f] justify-end shadow-[0_0_12px_rgba(255,2,127,0.5)]" : "bg-[#35324a] justify-start"
-                    }`}
+                    className={`w-12 h-7 rounded-full p-0.5 transition-all duration-200 flex items-center cursor-pointer ${exp.activa ? "bg-[#ff027f] justify-end shadow-[0_0_12px_rgba(255,2,127,0.5)]" : "bg-[#35324a] justify-start"
+                      }`}
                   >
                     <div
-                      className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                        exp.activa ? "bg-[#0e0b21]" : "bg-[#2a273e]"
-                      }`}
+                      className={`w-6 h-6 rounded-full flex items-center justify-center ${exp.activa ? "bg-[#0e0b21]" : "bg-[#2a273e]"
+                        }`}
                     >
                       <span className={`material-symbols-outlined text-[14px] ${exp.activa ? "text-[#ff027f]" : "text-[#928f99]"}`}>
                         {exp.activa ? "bolt" : "block"}
@@ -552,6 +538,10 @@ function AdminPanel({ onClose }) {
                     <span className="material-symbols-outlined text-[16px]">military_tech</span>
                     {exp.puntos} pts
                   </span>
+                  <span className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[16px]">group</span>
+                    {statsByExp.get(exp.id)?.total ?? 0} particip.
+                  </span>
                 </div>
                 <span className="flex items-center text-[12px] font-semibold text-[#7df4ff]">
                   Editar
@@ -577,9 +567,8 @@ function AdminPanel({ onClose }) {
               type="button"
               disabled={!item.activo}
               aria-current={item.activo ? "page" : undefined}
-              className={`flex-1 min-h-[44px] flex flex-col items-center justify-center gap-0.5 ${
-                item.activo ? "text-[#7df4ff]" : "text-[#c9c5d0]/35 cursor-not-allowed"
-              }`}
+              className={`flex-1 min-h-[44px] flex flex-col items-center justify-center gap-0.5 ${item.activo ? "text-[#7df4ff]" : "text-[#c9c5d0]/35 cursor-not-allowed"
+                }`}
             >
               <span className="material-symbols-outlined text-[22px]">{item.icono}</span>
               <span className="text-[11px] tracking-tight">{item.label}</span>
@@ -590,18 +579,16 @@ function AdminPanel({ onClose }) {
 
       {/* Backdrop del editor */}
       <div
-        className={`fixed inset-0 bg-[#0e0b21]/80 backdrop-blur-md z-[55] transition-opacity duration-300 ${
-          editorOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-        }`}
+        className={`fixed inset-0 bg-[#0e0b21]/80 backdrop-blur-md z-[55] transition-opacity duration-300 ${editorOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+          }`}
         onClick={closeEditor}
       />
 
       {/* Editor (bottom sheet) */}
       <div
         aria-hidden={!editorOpen}
-        className={`fixed inset-x-0 bottom-0 max-w-[480px] mx-auto z-[60] transition-transform duration-300 ease-out bg-[#1c192f] rounded-t-2xl shadow-[0_-8px_32px_rgba(0,0,0,0.7)] flex flex-col max-h-[86vh] overflow-hidden ${
-          editorOpen ? "translate-y-0" : "translate-y-full"
-        }`}
+        className={`fixed inset-x-0 bottom-0 max-w-[480px] mx-auto z-[60] transition-transform duration-300 ease-out bg-[#1c192f] rounded-t-2xl shadow-[0_-8px_32px_rgba(0,0,0,0.7)] flex flex-col max-h-[86vh] overflow-hidden ${editorOpen ? "translate-y-0" : "translate-y-full"
+          }`}
       >
         <div className="pt-2 pb-1 px-4 flex flex-col items-center bg-[#1c192f]">
           <div className="w-12 h-1.5 rounded-full bg-[#3a364e]" />
@@ -630,9 +617,8 @@ function AdminPanel({ onClose }) {
               key={t.key}
               type="button"
               onClick={() => setTab(t.key)}
-              className={`flex-1 py-2.5 px-1 rounded-t-lg text-[12px] font-semibold flex items-center justify-center gap-1.5 relative cursor-pointer ${
-                tab === t.key ? "bg-[#201d33] text-[#00eefc]" : "bg-[#2a273e] text-[#c9c5d0]"
-              }`}
+              className={`flex-1 py-2.5 px-1 rounded-t-lg text-[12px] font-semibold flex items-center justify-center gap-1.5 relative cursor-pointer ${tab === t.key ? "bg-[#201d33] text-[#00eefc]" : "bg-[#2a273e] text-[#c9c5d0]"
+                }`}
             >
               {tab === t.key && (
                 <div className="absolute top-0 left-4 right-4 h-0.5 bg-[#00eefc] rounded-full shadow-[0_0_8px_rgba(0,238,252,0.8)]" />
@@ -647,6 +633,24 @@ function AdminPanel({ onClose }) {
         <div className="flex-1 overflow-y-auto px-4 py-4 bg-[#201d33] flex flex-col gap-4">
           {tab === "a" && (
             <div className="bg-[#2a273e] p-4 rounded-xl flex flex-col gap-3">
+              {draft.id && (() => {
+                const s = statsByExp.get(draft.id) ?? { total: 0, en_curso: 0, completada: 0, abandonada: 0, expirada: 0 };
+                return (
+                  <div className="bg-[#0e0b21] p-3 rounded-xl border border-[#00eefc]/20 flex flex-col gap-2">
+                    <span className="text-[12px] text-[#00eefc] font-semibold flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">insights</span>
+                      Participaciones registradas
+                    </span>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[12px] text-[#c9c5d0]">
+                      <span>Total: <strong className="text-[#e5defe]">{s.total}</strong></span>
+                      <span>En curso: <strong className="text-[#7df4ff]">{s.en_curso}</strong></span>
+                      <span>Completadas: <strong className="text-[#00eefc]">{s.completada}</strong></span>
+                      <span>Abandonadas: <strong className="text-[#ffb1c4]">{s.abandonada}</strong></span>
+                      <span>Expiradas: <strong className="text-[#ff027f]">{s.expirada}</strong></span>
+                    </div>
+                  </div>
+                );
+              })()}
               <div>
                 <label htmlFor="exp-nombre" className="text-[12px] text-[#c9c5d0] block mb-1">
                   Nombre de la experiencia
@@ -686,11 +690,10 @@ function AdminPanel({ onClose }) {
                       type="button"
                       aria-pressed={draft.dificultad === dif}
                       onClick={() => patchDraft({ dificultad: dif })}
-                      className={`py-2 rounded-md text-[12px] flex items-center justify-center gap-1.5 cursor-pointer ${
-                        draft.dificultad === dif
-                          ? "bg-[#00eefc] text-[#002022] font-semibold"
-                          : "text-[#c9c5d0] hover:text-[#e5defe]"
-                      }`}
+                      className={`py-2 rounded-md text-[12px] flex items-center justify-center gap-1.5 cursor-pointer ${draft.dificultad === dif
+                        ? "bg-[#00eefc] text-[#002022] font-semibold"
+                        : "text-[#c9c5d0] hover:text-[#e5defe]"
+                        }`}
                     >
                       <span className="material-symbols-outlined text-[16px]">{DIFICULTAD_ICONO[dif]}</span>
                       {DIFICULTAD_LABEL[dif]}
@@ -764,7 +767,20 @@ function AdminPanel({ onClose }) {
                   className={`${inputBase} h-10`}
                 />
               </div>
-
+              <div>
+                <label htmlFor="exp-tematica" className="text-[12px] text-[#c9c5d0] block mb-1">
+                  Temática
+                </label>
+                <input
+                  id="exp-tematica"
+                  type="text"
+                  value={draft.tematica}
+                  maxLength={40}
+                  onChange={(e) => patchDraft({ tematica: e.target.value })}
+                  placeholder="Ej. Ciencia, Espionaje, Fantasía"
+                  className={`${inputBase} h-10`}
+                />
+              </div>
               <div>
                 <label htmlFor="exp-imagen" className="text-[12px] text-[#c9c5d0] block mb-1">
                   Imagen de la tarjeta (URL)
@@ -814,9 +830,8 @@ function AdminPanel({ onClose }) {
                 return (
                   <div
                     key={d.id}
-                    className={`rounded-xl p-4 flex flex-col gap-3 shadow-sm transition-all ${
-                      open ? "bg-[#2a273e]" : "bg-[#201d33] hover:bg-[#2a273e]"
-                    }`}
+                    className={`rounded-xl p-4 flex flex-col gap-3 shadow-sm transition-all ${open ? "bg-[#2a273e]" : "bg-[#201d33] hover:bg-[#2a273e]"
+                      }`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <button
@@ -826,9 +841,8 @@ function AdminPanel({ onClose }) {
                         className="flex items-center gap-3 min-w-0 flex-1 text-left cursor-pointer"
                       >
                         <span
-                          className={`w-6 h-6 rounded-full text-[11px] flex items-center justify-center font-bold flex-shrink-0 ${
-                            open ? "bg-[#00eefc] text-[#002022]" : "bg-[#35324a] text-[#c9c5d0]"
-                          }`}
+                          className={`w-6 h-6 rounded-full text-[11px] flex items-center justify-center font-bold flex-shrink-0 ${open ? "bg-[#00eefc] text-[#002022]" : "bg-[#35324a] text-[#c9c5d0]"
+                            }`}
                         >
                           {i + 1}
                         </span>
@@ -898,11 +912,10 @@ function AdminPanel({ onClose }) {
                                 key={t}
                                 type="button"
                                 onClick={() => updateDesafio(d.id, "tipoValidacion", t)}
-                                className={`py-2 rounded-md text-[12px] flex items-center justify-center gap-1.5 cursor-pointer ${
-                                  d.tipoValidacion === t
-                                    ? "bg-[#00eefc] text-[#002022] font-semibold"
-                                    : "text-[#c9c5d0] hover:text-[#e5defe]"
-                                }`}
+                                className={`py-2 rounded-md text-[12px] flex items-center justify-center gap-1.5 cursor-pointer ${d.tipoValidacion === t
+                                  ? "bg-[#00eefc] text-[#002022] font-semibold"
+                                  : "text-[#c9c5d0] hover:text-[#e5defe]"
+                                  }`}
                               >
                                 {TIPO_LABEL[t]}
                               </button>
@@ -998,9 +1011,8 @@ function AdminPanel({ onClose }) {
               type="button"
               onClick={removeExperience}
               disabled={saving}
-              className={`self-start flex items-center gap-1 text-[12px] cursor-pointer ${
-                confirmDelete ? "text-[#ff027f] font-bold" : "text-[#ffb1c4] hover:text-[#ff027f]"
-              }`}
+              className={`self-start flex items-center gap-1 text-[12px] cursor-pointer ${confirmDelete ? "text-[#ff027f] font-bold" : "text-[#ffb1c4] hover:text-[#ff027f]"
+                }`}
             >
               <span className="material-symbols-outlined text-[16px]">delete_forever</span>
               {confirmDelete ? "Tocá de nuevo para eliminar definitivamente" : "Eliminar experiencia"}
@@ -1031,8 +1043,6 @@ function AdminPanel({ onClose }) {
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ */
 
 function Slider({ label, value, min, max, step, display, accent, onChange }) {
   return (
