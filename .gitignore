@@ -15,7 +15,9 @@ coverage/
 .env
 
 .firebase/
+
 .claude/
+
 .agents/
 
 serviceAccountKey.json
