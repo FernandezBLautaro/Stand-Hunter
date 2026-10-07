@@ -1,6 +1,6 @@
 const navItems = [
-  { id: 'misiones', label: 'Misiones', icon: 'explore', availableInSprint1: true },
-  { id: 'escaner-ar', label: 'Escáner AR', icon: 'center_focus_strong', availableInSprint1: false },
+  { id: 'experiencias', label: 'Experiencias', icon: 'explore', availableInSprint1: true },
+  { id: 'escaner-ar', label: 'Escáner AR', icon: 'center_focus_strong', availableInSprint1: true },
   { id: 'asistente-ia', label: 'Asistente IA', icon: 'smart_toy', availableInSprint1: false },
   { id: 'recompensas', label: 'Recompensas', icon: 'military_tech', availableInSprint1: false },
 ];
@@ -18,8 +18,8 @@ export const BottomNavigation = ({ activeTab, onSelectTab, unclaimedRewards = fa
       <div className="h-20 max-w-lg mx-auto px-2 flex items-center justify-around">
         {navItems.map((item) => {
           const isActive = activeTab === item.id;
-          // Sprint 1: escáner AR, asistente IA y recompensas llegan en sprints
-          // posteriores (2, 3 y 5). Se muestran bloqueados en vez de rotos.
+          // Sprint 2 habilita el escáner. Asistente IA y recompensas llegan en los sprints
+          // 3 y 5 y se muestran bloqueados en vez de rotos.
           const isLocked = !item.availableInSprint1;
 
           return (

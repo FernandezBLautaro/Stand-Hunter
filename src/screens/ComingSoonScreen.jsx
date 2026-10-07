@@ -10,7 +10,7 @@ export const ComingSoonScreen = ({ title, sprintLabel, onBack, onConclude }) => 
       </p>
       <p className="font-body-sm text-[13px] text-[#c9c5d0] max-w-xs leading-relaxed mb-6">
         Esta sección todavía no forma parte del alcance del Sprint 1. Podés seguir explorando
-        las misiones disponibles mientras tanto.
+        las experiencias disponibles mientras tanto.
       </p>
 
       {onConclude && (
@@ -26,7 +26,7 @@ export const ComingSoonScreen = ({ title, sprintLabel, onBack, onConclude }) => 
         onClick={onBack}
         className="px-4 py-2 rounded-xl bg-[#00eefc] text-[#002022] font-headline-sm text-[13px] font-bold uppercase tracking-wide cursor-pointer"
       >
-        Volver a Misiones
+        Volver a Experiencias
       </button>
     </div>
   );

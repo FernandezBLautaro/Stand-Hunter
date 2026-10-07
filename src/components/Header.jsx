@@ -1,7 +1,7 @@
 import { StandHunterLogo } from './StandHunterLogo';
 
 const tabTitles = {
-  misiones: 'Misiones',
+  experiencias: 'Experiencias',
   'escaner-ar': 'Escáner AR',
   'asistente-ia': 'Asistente IA',
   recompensas: 'Recompensas',

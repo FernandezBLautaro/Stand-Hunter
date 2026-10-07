@@ -3,14 +3,12 @@
  * En JS no existen los `interface`/`type` de TypeScript: se documentan
  * acá con JSDoc solo como referencia para el equipo, sin efecto en runtime.
  *
- * @typedef {'misiones' | 'escaner-ar' | 'asistente-ia' | 'recompensas'} ActiveTab
- * @typedef {'cazador' | 'cripto' | 'explorador'} TacticalSpecialty
+ * @typedef {'experiencias' | 'escaner-ar' | 'asistente-ia' | 'recompensas'} ActiveTab
  *
  * @typedef {Object} ParticipantProfile
  * @property {string} id
  * @property {string} nickname
  * @property {string} [email]
- * @property {TacticalSpecialty} specialty
  * @property {boolean} registered
  * @property {number} score
  *
@@ -40,6 +38,17 @@
  * @property {string} imagenUrl
  * @property {string} creadoEl
  * 
+ *
+ * @typedef {'qr' | 'nfc'} TipoElemento
+ *
+ * @typedef {Object} ElementoFisico
+ * @property {string} id
+ * @property {string} experienciaId
+ * @property {string} nombre
+ * @property {string} codigoIdentificador  único por experiencia, en mayúsculas (lo que codifica el QR/NFC)
+ * @property {TipoElemento} tipo
+ * @property {string} ubicacion
+ * @property {*} creadoEl
  *
  * @typedef {Object} ApiError
  * @property {string} message

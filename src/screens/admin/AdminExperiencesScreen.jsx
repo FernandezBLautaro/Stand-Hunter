@@ -11,8 +11,10 @@ import {
   newChallenge, describeFirestoreError, TIPOS_VALIDACION, DIFICULTADES, DIFICULTAD_LABEL
 } from "../../services/firestoreService.js";
 import { subscribeParticipations, summarizeByExperience } from "../../services/participationService.js";
+import { AdminBottomNav } from "../../components/AdminBottomNav.jsx";
+import AdminInventarioScreen from "./AdminInventarioScreen.jsx";
 
-const TIPO_LABEL = { pregunta: "Pregunta", codigo: "Código QR", voz: "Voz" };
+const TIPO_LABEL = { pregunta: "Pregunta", codigo: "Código", voz: "Voz" };
 
 const DIFICULTAD_ICONO = { facil: "signal_cellular_1_bar", media: "signal_cellular_3_bar", dificil: "signal_cellular_4_bar" };
 
@@ -37,146 +39,19 @@ const inputBase =
 /* ================================================================== */
 
 export default function AdminExperiencesScreen({ onClose }) {
-  // TEMPORAL: sin PIN. Entra directo al panel. Ver TODO(sprint PIN) más abajo.
-  return <AdminPanel onClose={onClose} />;
-}
+  const [section, setSection] = useState("experiencias");
 
-// export default function AdminExperiencesScreen({ onClose }) {
-//   const [status, setStatus] = useState("loading"); // loading | out | admin
-//
-//   useEffect(
-//     () => subscribeAdminState(({ isAdmin }) => setStatus(isAdmin ? "admin" : "out")),
-//     []
-//   );
-//
-//   if (status === "loading") {
-//     return (
-//       <div className="min-h-screen bg-[#131027] flex items-center justify-center">
-//         <span className="material-symbols-outlined text-[#00eefc] text-[32px] animate-spin">sync</span>
-//       </div>
-//     );
-//   }
-//
-//   if (status === "out") {
-//     return <PinGate onSuccess={() => setStatus("admin")} onClose={onClose} />;
-//   }
-//
-//   return (
-//     <AdminPanel
-//       onClose={onClose}
-//       onLogout={async () => {
-//         await logoutAdmin();
-//         setStatus("out");
-//       }}
-//     />
-//   );
-// }
-//
-// /* ================================================================== */
-// /* Login por PIN                                                       */
-// /* ================================================================== */
-//
-// function PinGate({ onSuccess, onClose }) {
-//   const [pin, setPin] = useState("");
-//   const [busy, setBusy] = useState(false);
-//   const [error, setError] = useState("");
-//
-//   const submit = async (e) => {
-//     e.preventDefault();
-//     if (!pin.trim()) return;
-//     setBusy(true);
-//     setError("");
-//     try {
-//       await loginAdmin(pin);
-//       onSuccess();
-//     } catch (err) {
-//       setError(describeAuthError(err));
-//     } finally {
-//       setBusy(false);
-//     }
-//   };
-//
-//   return (
-//     <div className="min-h-screen bg-[#131027] flex items-center justify-center p-4">
-//       <form
-//         onSubmit={submit}
-//         className="relative w-full max-w-md rounded-2xl bg-[#131027] border border-[#00eefc]/30 p-5 space-y-4 shadow-[0_0_40px_rgba(0,0,0,0.8)] overflow-hidden"
-//       >
-//         <div className="absolute -top-16 -right-16 w-44 h-44 rounded-full bg-[#ff027f]/15 blur-2xl pointer-events-none" />
-//
-//         <div className="flex items-center justify-between pb-3 border-b border-white/10">
-//           <div className="flex items-center gap-1.5 bg-[#0e0b21] px-2.5 py-1 rounded-full border border-[#ff027f]/30">
-//             <span className="w-2 h-2 rounded-full bg-[#ff027f] animate-pulse" />
-//             <span className="font-label-code text-[10px] text-[#ffb1c4] tracking-wider uppercase font-semibold">
-//               Consola de staff
-//             </span>
-//           </div>
-//           {onClose && (
-//             <button
-//               type="button"
-//               onClick={onClose}
-//               aria-label="Cerrar"
-//               className="material-symbols-outlined text-[#c9c5d0] hover:text-[#e5defe] cursor-pointer"
-//             >
-//               close
-//             </button>
-//           )}
-//         </div>
-//
-//         <div className="flex items-center gap-3">
-//           <div className="w-14 h-14 rounded-xl bg-[#1a1442] border border-[#ff027f]/40 flex items-center justify-center flex-shrink-0">
-//             <span className="material-symbols-outlined text-3xl text-[#ff027f]">admin_panel_settings</span>
-//           </div>
-//           <div>
-//             <h2 className="font-headline-md text-[22px] font-bold text-[#e5defe] leading-tight">
-//               Acceso administrador
-//             </h2>
-//             <p className="text-[12px] text-[#c9c5d0]">Ingresá el PIN del stand para gestionar experiencias.</p>
-//           </div>
-//         </div>
-//
-//         {error && (
-//           <div className="p-2.5 rounded-lg bg-[#93000a]/60 border border-[#ffb4ab]/40 text-[#ffdad6] text-xs">
-//             {error}
-//           </div>
-//         )}
-//
-//         <div>
-//           <label htmlFor="admin-pin" className="text-[12px] text-[#00eefc] font-semibold flex items-center gap-1 mb-1">
-//             <span className="material-symbols-outlined text-[14px]">lock</span>
-//             PIN de administrador
-//           </label>
-//           <input
-//             id="admin-pin"
-//             type="password"
-//             autoComplete="off"
-//             autoFocus
-//             required
-//             value={pin}
-//             onChange={(e) => setPin(e.target.value)}
-//             placeholder="••••••"
-//             className={`${inputBase} h-12 border-[#00eefc]/30`}
-//           />
-//         </div>
-//
-//         <button
-//           type="submit"
-//           disabled={busy}
-//           className="w-full h-12 rounded-xl bg-[#ff027f] hover:bg-[#ff027f]/90 text-white font-headline-sm text-[15px] font-bold flex items-center justify-center gap-2 shadow-[0_0_24px_rgba(255,2,127,0.55)] active:scale-[0.98] transition-transform cursor-pointer disabled:opacity-50"
-//         >
-//           <span className="material-symbols-outlined text-[20px]">key</span>
-//           <span>{busy ? "Verificando PIN…" : "Ingresar al panel"}</span>
-//         </button>
-//       </form>
-//     </div>
-//   );
-// }
+  if (section === "inventario") {
+    return <AdminInventarioScreen onClose={onClose} onNavigate={setSection} />;
+  }
+  return <AdminPanel onClose={onClose} onNavigate={setSection} />;
+}
 
 /* ================================================================== */
 /* Panel                                                               */
 /* ================================================================== */
 
-function AdminPanel({ onClose }) {
+function AdminPanel({ onClose, onNavigate }) {
   const [experiencias, setExperiencias] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -364,17 +239,6 @@ function AdminPanel({ onClose }) {
             >
               <span className="material-symbols-outlined text-[24px]">add</span>
             </button>
-            {/* TODO(sprint PIN): botón de cerrar sesión de administrador
-            <button
-              type="button"
-              onClick={onLogout}
-              aria-label="Cerrar sesión de administrador"
-              title="Cerrar sesión"
-              className="w-11 h-11 rounded-lg bg-[#2a1020] border border-[#ff027f]/40 text-[#ffb1c4] flex items-center justify-center hover:bg-[#3d142e] transition-colors cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[20px]">logout</span>
-            </button>
-            */}
             {onClose && (
               <button
                 type="button"
@@ -553,29 +417,7 @@ function AdminPanel({ onClose }) {
         </div>
       </main>
 
-      {/* Bottom nav (solo Experiencias existe por ahora) */}
-      <nav className="fixed bottom-0 w-full z-50 pb-safe bg-[#0e0b21]/85 backdrop-blur-xl shadow-[0_-4px_24px_rgba(0,0,0,0.5)]">
-        <div className="max-w-[480px] mx-auto h-16 px-1 flex items-center justify-around">
-          {[
-            { icono: "local_activity", label: "Experiencias", activo: true },
-            { icono: "inventory_2", label: "Inventario", activo: false },
-            { icono: "military_tech", label: "Premios", activo: false },
-            { icono: "currency_exchange", label: "Canje", activo: false },
-          ].map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              disabled={!item.activo}
-              aria-current={item.activo ? "page" : undefined}
-              className={`flex-1 min-h-[44px] flex flex-col items-center justify-center gap-0.5 ${item.activo ? "text-[#7df4ff]" : "text-[#c9c5d0]/35 cursor-not-allowed"
-                }`}
-            >
-              <span className="material-symbols-outlined text-[22px]">{item.icono}</span>
-              <span className="text-[11px] tracking-tight">{item.label}</span>
-            </button>
-          ))}
-        </div>
-      </nav>
+      <AdminBottomNav section="experiencias" onNavigate={onNavigate} />
 
       {/* Backdrop del editor */}
       <div

@@ -1,3 +1,4 @@
+// vision 0.2
 rules_version = '2';
 
 service cloud.firestore {
@@ -7,21 +8,22 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Admin = el documento usuarios/{uid} tiene tipo 'administrador'.
     function isAdmin() {
-      return isAuthenticated() && request.auth.token.admin == true;
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.tipo == 'administrador';
     }
-
-    // Usuarios
 
     match /usuarios/{uid} {
       allow read: if isAuthenticated() && (request.auth.uid == uid || isAdmin());
 
-      // El usuario solo puede crear SU PROPIO documento.
+      // Solo puede crear SU documento y siempre como jugador.
       allow create: if isAuthenticated()
         && request.auth.uid == uid
         && request.resource.data.tipo == 'jugador';
 
-      // Puede actualizar su documento sin tocar el campo tipo.
+      // El dueño edita su perfil pero no puede cambiar su tipo.
       allow update: if isAdmin()
         || (isAuthenticated() && request.auth.uid == uid
             && request.resource.data.tipo == resource.data.tipo);
@@ -30,14 +32,8 @@ service cloud.firestore {
     }
 
     match /experiences/{id_experiencia} {
-      // TEMPORAL (Sprint 1): el login por PIN está desactivado, así que el panel
-      // admin no tiene el claim `admin`. Se abre lectura/escritura de esta colección.
-      // TODO(sprint PIN): borrar estas dos líneas y restaurar las reglas de abajo.
-      allow read, write: if true;
-
-      // --- Reglas definitivas (restaurar cuando vuelva el PIN) ---
-      // allow read: if resource.data.activa == true || isAdmin();
-      // allow create, update, delete: if isAdmin();
+      allow read: if resource.data.activa == true || isAdmin();
+      allow create, update, delete: if isAdmin();
 
       match /desafios/{id_desafio} {
         allow read: if isAuthenticated();
@@ -47,17 +43,26 @@ service cloud.firestore {
           allow read, write: if isAdmin();
         }
       }
-
-      match /elementos_fisicos/{id_elemento} {
-        allow read: if isAuthenticated();
-        allow write: if isAdmin();
-      }
     }
-    
+
     match /participaciones/{id_participacion} {
-    allow read: if isAdmin();
-    allow create: if isAuthenticated() && request.resource.data.usuarioId == request.auth.uid;
-    allow update: if isAdmin() || (isAuthenticated() && resource.data.usuarioId == request.auth.uid);
+      // El jugador necesita leer la suya (restaurar progreso); el admin lee todas.
+      allow read: if isAdmin()
+        || (isAuthenticated() && resource.data.usuarioId == request.auth.uid);
+
+      allow create: if isAuthenticated()
+        && request.resource.data.usuarioId == request.auth.uid
+        && request.resource.data.estado == 'en_curso';
+
+      allow update: if isAdmin()
+        || (isAuthenticated()
+            && resource.data.usuarioId == request.auth.uid
+            && request.resource.data.usuarioId == resource.data.usuarioId);
+    }
+
+    match /elementos_fisicos/{id} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
     }
   }
 }

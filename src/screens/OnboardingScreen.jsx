@@ -1,14 +1,25 @@
 import { useState } from 'react';
+import { InfoModal } from '../components/InfoModal.jsx';
 
 /**
  * @param {{ onDismiss: () => void, onCameraGranted: () => void, onAdminAccess: () => void }} props
  */
-export const OnboardingScreen = ({ onDismiss, onCameraGranted, onAdminAccess }) => {
+export const OnboardingScreen = ({ onDismiss, onCameraGranted, onAdminAccess, onRequestLogin, isAdmin = false }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [cameraConnecting, setCameraConnecting] = useState(false);
   const [cameraConnected, setCameraConnected] = useState(false);
+  const [adminDenied, setAdminDenied] = useState(false);
   const isLastSlide = currentSlide === 2;
   const goNext = () => setCurrentSlide((s) => Math.min(s + 1, 2));
+
+  const handleAdminClick = () => {
+    if (isAdmin) {
+      setAdminDenied(false);
+      onAdminAccess();
+      return;
+    }
+    setAdminDenied(true);
+  };
 
   const requestCamera = async () => {
     setCameraConnecting(true);
@@ -257,9 +268,9 @@ export const OnboardingScreen = ({ onDismiss, onCameraGranted, onAdminAccess }) 
           </div>
 
           {/* Accessibility & Security Badge Banner*/}
-          <div className="mt-5 w-full max-w-md mx-auto">
+          <div className="mt-5 w-full max-w-md mx-auto flex flex-col gap-2">
             <button
-              onClick={onAdminAccess}
+              onClick={handleAdminClick}
               className="w-full bg-[#1c192f]/90 border border-[#00eefc]/25 hover:border-[#00eefc]/60 rounded-lg p-3 flex items-center justify-center gap-2 transition-all cursor-pointer group"
             >
               <span className="material-symbols-outlined text-[#00eefc] text-[20px] group-hover:scale-110 transition-transform">
@@ -272,6 +283,17 @@ export const OnboardingScreen = ({ onDismiss, onCameraGranted, onAdminAccess }) 
           </div>
         </>
       )}
+
+      <InfoModal
+        isOpen={adminDenied}
+        onClose={() => setAdminDenied(false)}
+        type="error"
+        title="Acceso denegado"
+        message="Tu cuenta no tiene permisos de administrador. Iniciá sesión con una cuenta de tipo administrador."
+        primaryLabel="Entendido"
+        secondaryLabel={onRequestLogin ? 'Iniciar sesión' : undefined}
+        onSecondary={onRequestLogin}
+      />
     </div>
   );
 };

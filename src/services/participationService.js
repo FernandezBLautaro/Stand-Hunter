@@ -1,5 +1,5 @@
 // DAT01/DAT02 — Registro de participaciones.
-import { collection, doc, addDoc, updateDoc, onSnapshot, serverTimestamp} from "firebase/firestore";
+import { collection, doc, addDoc, updateDoc, onSnapshot, serverTimestamp, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase";
 
 const COLLECTION = "participaciones";
@@ -17,7 +17,7 @@ export const ESTADO_PARTICIPACION_LABEL = {
  * DAT01 — Registra el inicio de una participación: usuario, misión y momento de inicio, quedando en estado "en_curso".
  * @return { id, startedAtMs } para poder calcular el tiempo total al cerrarla.
  */
-export async function startParticipation({ usuarioId, usuarioNickname, experienciaId, experienciaNombre }) {
+export async function startParticipation({ usuarioId, usuarioNickname, experienciaId, experienciaNombre, duracionMin }) {
   if (!usuarioId || !experienciaId) {
     throw new Error("Falta usuarioId o experienciaId para iniciar la participación.");
   }
@@ -31,9 +31,39 @@ export async function startParticipation({ usuarioId, usuarioNickname, experienc
     momentoFin: null,
     tiempoTotalMs: null,
     puntajeFinal: null,
-    creadoEl: serverTimestamp(),
+    duracionMin: Number.isFinite(Number(duracionMin)) ? Number(duracionMin) : null,
   });
   return { id: ref.id, startedAtMs: Date.now() };
+}
+
+/**
+ * Busca la participación 'en_curso' más reciente del usuario (opcionalmente de una experiencia).
+ * Dos igualdades → no requiere índice compuesto. El filtro por experiencia se hace en cliente.
+ * @return {Promise<{id, experienciaId, experienciaNombre, duracionMin, startedAtMs} | null>}
+ */
+export async function findActiveParticipation(usuarioId, experienciaId = null) {
+  if (!usuarioId) return null;
+  const snap = await getDocs(
+    query(
+      participationsRef(),
+      where("usuarioId", "==", String(usuarioId)),
+      where("estado", "==", "en_curso")
+    )
+  );
+  const items = snap.docs
+    .map((d) => {
+      const data = d.data({ serverTimestamps: "estimate" });
+      return {
+        id: d.id,
+        experienciaId: data.experienciaId,
+        experienciaNombre: data.experienciaNombre,
+        duracionMin: data.duracionMin ?? null,
+        startedAtMs: data.momentoInicio?.toMillis?.() ?? Date.now(),
+      };
+    })
+    .filter((p) => !experienciaId || p.experienciaId === experienciaId)
+    .sort((a, b) => b.startedAtMs - a.startedAtMs);
+  return items[0] ?? null;
 }
 
 /**

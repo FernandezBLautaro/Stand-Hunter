@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { DIFICULTAD_LABEL } from '../services/firestoreService.js';
-// Estilo visual por dificultad (única variación entre tarjetas).
+import { ThemeSelector } from '../components/ThemeSelector.jsx';
+
 const ESTILO = {
   facil: {
     card: 'border-[#00eefc]/30',
@@ -46,30 +47,34 @@ const coincide = (filtro, tematica, exp) => {
 
 /**
  * @param {{
- *   missions: import('../types.js').Experience[],
+ *   experiences: import('../types.js').Experience[],
  *   participant: import('../types.js').ParticipantProfile,
- *   onStartMission: (mission: import('../types.js').Experience) => void,
+ *   onStartExperience: (experience: import('../types.js').Experience) => void,
  *   isLoading?: boolean,
  * }} props
  */
-export const MissionsScreen = ({ missions, participant, onStartMission, isLoading = false }) => {
+export const ExperiencesScreen = ({ experiences, participant, onStartExperience, isLoading = false }) => {
   const [filtro, setFiltro] = useState('todas');
   const [tematica, setTematica] = useState('todas');
 
-  const tematicas = useMemo(
-    () => [...new Set(missions.map((m) => m.tematica).filter(Boolean))].sort(),
-    [missions]
-  );
+  const tematicas = useMemo(() => {
+    const conteo = new Map();
+    for (const experience of experiences) {
+      if (experience.tematica) conteo.set(experience.tematica, (conteo.get(experience.tematica) ?? 0) + 1);
+    }
+    return [...conteo.entries()]
+      .map(([nombre, cantidad]) => ({ nombre, cantidad }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [experiences]);
 
-  const visibles = missions.filter((m) => coincide(filtro, tematica, m));
+  const visibles = experiences.filter((experience) => coincide(filtro, tematica, experience));
 
   return (
     <div className="flex flex-col w-full max-w-md mx-auto px-4 pt-2 pb-24 relative select-none">
-      {/* Pase del participante */}
       <div className="flex items-center justify-between py-2 text-[#c9c5d0] font-label-code text-[11px] border-b border-white/5">
         <div className="flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-[#00eefc] shadow-[0_0_6px_#00eefc]" />
-          <span>PASE: #{participant.id}</span>
+          <span>PASE: #{participant.id.slice(0, 6).toUpperCase()}</span>
         </div>
         <div className="flex items-center gap-1 bg-[#1c192f] px-2.5 py-0.5 rounded-full border border-white/10 text-[#c7c0f8]">
           <span className="material-symbols-outlined text-[14px]">shield</span>
@@ -77,22 +82,20 @@ export const MissionsScreen = ({ missions, participant, onStartMission, isLoadin
         </div>
       </div>
 
-      {/* Título */}
       <div className="flex items-center gap-2.5 mt-3 mb-3">
         <div className="w-8 h-8 rounded-lg bg-[#201d33] border border-[#00eefc]/30 flex items-center justify-center text-[#00eefc]">
           <span className="material-symbols-outlined text-[20px]">radar</span>
         </div>
         <div>
           <h1 className="font-headline-md text-[20px] font-bold text-[#e5defe] leading-tight">
-            Misiones disponibles
+            Experiencias disponibles
           </h1>
           <p className="font-label-code text-[10px] text-[#00eefc] tracking-widest uppercase font-semibold">
-            {isLoading ? 'Sincronizando…' : `${visibles.length} de ${missions.length} activas`}
+            {isLoading ? 'Sincronizando…' : `${visibles.length} de ${experiences.length} activas`}
           </p>
         </div>
       </div>
 
-      {/* Filtros de dificultad/tiempo */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 mb-3">
         {FILTROS.map((f) => (
           <button
@@ -111,44 +114,31 @@ export const MissionsScreen = ({ missions, participant, onStartMission, isLoadin
         ))}
       </div>
 
-      {/* Filtro por temática */}
-      {tematicas.length > 0 && (
-        <div className="flex items-center gap-2 mb-4">
-          <span className="material-symbols-outlined text-[16px] text-[#00eefc]">sell</span>
-          <select
-            value={tematica}
-            onChange={(e) => setTematica(e.target.value)}
-            aria-label="Filtrar por temática"
-            className="flex-1 h-9 bg-[#1c192f] border border-white/10 rounded-full px-3 text-[#e5defe] font-label-md text-[12px] focus:outline-none focus:border-[#00eefc] cursor-pointer"
-          >
-            <option value="todas">Todas las temáticas</option>
-            {tematicas.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-        </div>
+      <ThemeSelector
+        tematicas={tematicas}
+        total={experiences.length}
+        value={tematica}
+        onChange={setTematica}
+      />
+
+      {isLoading && experiences.length === 0 && (
+        <p className="text-center text-[13px] text-[#c9c5d0] py-10">Buscando experiencias…</p>
       )}
 
-      {/* Estados vacíos */}
-      {isLoading && missions.length === 0 && (
-        <p className="text-center text-[13px] text-[#c9c5d0] py-10">Buscando misiones…</p>
-      )}
-
-      {!isLoading && missions.length === 0 && (
+      {!isLoading && experiences.length === 0 && (
         <div className="p-5 rounded-xl bg-[#1c192f] border border-white/10 text-center space-y-2">
           <span className="material-symbols-outlined text-[32px] text-[#00eefc]">local_activity</span>
-          <p className="text-[14px] text-[#e5defe]">No hay misiones activas por ahora.</p>
+          <p className="text-[14px] text-[#e5defe]">No hay experiencias activas por ahora.</p>
           <p className="text-[12px] text-[#c9c5d0]">Consultá con el staff del stand.</p>
         </div>
       )}
 
-      {missions.length > 0 && visibles.length === 0 && (
+      {experiences.length > 0 && visibles.length === 0 && (
         <p className="text-center text-[13px] text-[#c9c5d0] py-10">
-          Ninguna misión coincide con este filtro.
+          Ninguna experiencia coincide con este filtro.
         </p>
       )}
 
-      {/* Lista */}
       <div className="flex flex-col gap-4">
         {visibles.map((exp) => {
           const estilo = ESTILO[exp.dificultad] ?? ESTILO.facil;
@@ -159,7 +149,6 @@ export const MissionsScreen = ({ missions, participant, onStartMission, isLoadin
               key={exp.id}
               className={`rounded-2xl overflow-hidden bg-[#1c192f] border shadow-xl p-4 flex flex-col gap-3 ${estilo.card}`}
             >
-              {/* Dificultad y puntos */}
               <div className="flex items-center justify-between">
                 <span
                   className={`font-label-code text-[10px] uppercase font-bold tracking-widest px-2.5 py-1 rounded-full ${estilo.badge}`}
@@ -172,7 +161,6 @@ export const MissionsScreen = ({ missions, participant, onStartMission, isLoadin
                 </div>
               </div>
 
-              {/* Imagen y locación */}
               <div className="relative w-full h-36 rounded-xl overflow-hidden bg-[#0e0b21] border border-white/10">
                 {exp.imagenUrl ? (
                   <img src={exp.imagenUrl} alt={exp.nombre} className="w-full h-full object-cover brightness-90" />
@@ -189,7 +177,6 @@ export const MissionsScreen = ({ missions, participant, onStartMission, isLoadin
                 )}
               </div>
 
-              {/* Nombre y descripción */}
               <div>
                 <h3 className="font-headline-sm text-[17px] font-bold text-[#e5defe] leading-snug">{exp.nombre}</h3>
                 {exp.descripcion && (
@@ -199,7 +186,6 @@ export const MissionsScreen = ({ missions, participant, onStartMission, isLoadin
                 )}
               </div>
 
-              {/* Duración y desafíos */}
               <div className="flex items-center gap-4 text-[#c9c5d0] font-label-code text-[11px] pt-1">
                 <span className="flex items-center gap-1">
                   <span className="material-symbols-outlined text-[14px]">timer</span>
@@ -219,7 +205,7 @@ export const MissionsScreen = ({ missions, participant, onStartMission, isLoadin
 
               <button
                 type="button"
-                onClick={() => onStartMission(exp)}
+                onClick={() => onStartExperience(exp)}
                 className={`w-full h-12 rounded-xl font-headline-sm text-[14px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer ${estilo.boton}`}
               >
                 <span>Iniciar desafío</span>

@@ -120,7 +120,7 @@ function sanitize(data, { partial = false } = {}) {
     out.locacion = String(data.locacion ?? "").trim().slice(0, 120);
   }
   if (!partial || has("tematica")) {
-  out.tematica = String(data.tematica ?? "").trim().slice(0, 40);
+    out.tematica = String(data.tematica ?? "").trim().slice(0, 40);
   }
   if (!partial || has("imagenUrl")) {
     const url = String(data.imagenUrl ?? "").trim().slice(0, 500);
@@ -188,7 +188,7 @@ export async function getExperience(id) {
 
 /**
  * DAT01 — Registro rápido de participante (tabla USUARIO).
- * @param {{ nickname: string, email?: string, specialty: string }} data
+ * @param {{ nickname: string, email?: string }} data
  * @returns {Promise<any>}
  */
 export async function registerParticipant(data) {
@@ -335,8 +335,10 @@ export function describeFirestoreError(err) {
       return "Sin permisos en Firestore. Verificá que las reglas estén desplegadas y que tu sesión tenga el claim admin.";
     case "unavailable":
       return "Sin conexión con Firestore. Reintentá en unos segundos.";
+    case "permission-denied":
+      return "Sin permisos en Firestore. Verificá las reglas desplegadas y que tu cuenta sea de tipo administrador.";
     case "unauthenticated":
-      return "Tu sesión expiró. Volvé a ingresar el PIN.";
+      return "Tu sesión expiró. Volvé a iniciar sesión.";
     default:
       return err?.message || "Error inesperado al hablar con Firestore.";
   }

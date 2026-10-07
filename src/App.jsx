@@ -1,59 +1,66 @@
-import { useState, useEffect, useCallback } from 'react';
-import { subscribeExperiences, describeFirestoreError} from './services/firestoreService.js';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { subscribeExperiences, describeFirestoreError } from './services/firestoreService.js';
+import { subscribeSession, isAdminProfile } from './services/authService.js';
+import { ParticipationProvider, useParticipation } from './context/ParticipationContext.jsx';
 import { Header } from './components/Header.jsx';
 import { BottomNavigation } from './components/BottomNavigation.jsx';
 import { SplashScreen } from './screens/SplashScreen.jsx';
 import { OnboardingScreen } from './screens/OnboardingScreen.jsx';
 import { RegistrationModal } from './components/RegistrationModal.jsx';
-import { MissionsScreen } from './screens/MissionsScreen.jsx';
+import { ExperiencesScreen } from './screens/ExperiencesScreen.jsx';
 import { ErrorBanner } from './components/ErrorBanner.jsx';
 import { ComingSoonScreen } from './screens/ComingSoonScreen.jsx';
-import { AdminLoginModal } from './components/AdminLoginModal.jsx';
-import { startParticipation, finishParticipation } from './services/participationService.js';
+import { ScannerScreen } from './screens/ScannerScreen.jsx';
+import AdminExperiencesScreen from './screens/admin/AdminExperiencesScreen.jsx';
 
+const toApiError = (err) => ({
+  message: describeFirestoreError(err),
+  code: err?.code ?? 'FIRESTORE',
+  isNetworkError: err?.code === 'unavailable',
+});
+
+/**
+ * App: sesión + experiencias + errores. Envuelve todo en ParticipationProvider
+ * (necesita user y experiences) y delega la UI en AppShell.
+ */
 export default function App() {
-  const [showSplash, setShowSplash] = useState(true);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showProfileModal, setShowProfileModal] = useState(false);
-  const [showAdminModal, setShowAdminModal] = useState(false);
-  const [activeTab, setActiveTab] = useState('misiones');
-  const [activeParticipation, setActiveParticipation] = useState(null); 
-
-  const [participant, setParticipant] = useState({
-    id: 'SH-9428',
-    nickname: 'Lautaro_Agent',
-    email: 'lautarofernandezb14@gmail.com',
-    specialty: 'cazador',
-    registered: true,
-    score: 1450,
-  });
-
-  // Solo las activas llegan al participante.
-  const [missions, setMissions] = useState([]);
-  const [selectedMission, setSelectedMission] = useState(null);
-  const [loadingMissions, setLoadingMissions] = useState(true);
+  const [session, setSession] = useState({ user: null, profile: null, ready: false });
+  const [experiences, setExperiences] = useState([]);
+  const [loadingExperiences, setLoadingExperiences] = useState(true);
   const [apiError, setApiError] = useState(null);
   const [isRetrying, setIsRetrying] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
 
-  // Suscripción en tiempo real: si el admin activa/desactiva una experiencia,
-  // la misión aparece o desaparece al instante.
+  useEffect(() => subscribeSession(setSession), []);
+
+  const isAdmin = isAdminProfile(session.profile);
+
+  const participant = useMemo(
+    () =>
+      session.user
+        ? {
+          id: session.user.uid,
+          nickname: session.profile?.nombre ?? session.user.displayName ?? 'Agente',
+          email: session.user.email ?? '',
+          registered: true,
+          score: session.profile?.puntaje ?? 0,
+        }
+        : { id: 'INVITADO', nickname: 'Invitado', email: '', registered: false, score: 0 },
+    [session]
+  );
+
   useEffect(() => {
-    setLoadingMissions(true);
+    setLoadingExperiences(true);
     const unsubscribe = subscribeExperiences(
       (list) => {
-        setMissions(list);
+        setExperiences(list);
         setApiError(null);
-        setLoadingMissions(false);
+        setLoadingExperiences(false);
         setIsRetrying(false);
       },
       (err) => {
-        setApiError({
-          message: describeFirestoreError(err),
-          code: err?.code ?? 'FIRESTORE',
-          isNetworkError: err?.code === 'unavailable',
-        });
-        setLoadingMissions(false);
+        setApiError(toApiError(err));
+        setLoadingExperiences(false);
         setIsRetrying(false);
       },
       { onlyActive: true }
@@ -61,56 +68,92 @@ export default function App() {
     return unsubscribe;
   }, [retryKey]);
 
+  // Estable a propósito: lo consumen el Provider y ScannerScreen sin re-suscribirse en cada render.
+  const handleServiceError = useCallback((err) => setApiError(toApiError(err)), []);
+
   const handleRetry = () => {
     setIsRetrying(true);
     setRetryKey((k) => k + 1);
   };
+
+  return (
+    <ParticipationProvider
+      user={session.user}
+      nickname={participant.nickname}
+      experiences={experiences}
+      onError={handleServiceError}
+    >
+      <AppShell
+        session={session}
+        isAdmin={isAdmin}
+        participant={participant}
+        experiences={experiences}
+        loadingExperiences={loadingExperiences}
+        apiError={apiError}
+        setApiError={setApiError}
+        isRetrying={isRetrying}
+        onRetry={handleRetry}
+        onServiceError={handleServiceError}
+      />
+    </ParticipationProvider>
+  );
+}
+
+function AppShell({
+  session, isAdmin, participant, experiences, loadingExperiences,
+  apiError, setApiError, isRetrying, onRetry, onServiceError,
+}) {
+  const [showSplash, setShowSplash] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [activeTab, setActiveTab] = useState('experiencias');
+  const [pendingExperience, setPendingExperience] = useState(null);
+
+  const { active, startOrResume, conclude, abandon, reset } = useParticipation();
 
   const handleSplashComplete = useCallback(() => {
     setShowSplash(false);
     setShowOnboarding(true);
   }, []);
 
-  // ESC01-ESC12 (motor de escape room) llegan en Sprints posteriores.
-  const handleStartMission = async (mission) => {
-  setSelectedMission(mission);
-  setActiveTab('escaner-ar');
-  try {
-      const { id, startedAtMs } = await startParticipation({
-        usuarioId: participant.id,
-        usuarioNickname: participant.nickname,
-        experienciaId: mission.id,
-        experienciaNombre: mission.nombre,
-      });
-      setActiveParticipation({ id, startedAtMs });
-    } catch (err) {
-      setApiError({
-        message: describeFirestoreError(err),
-        code: err?.code ?? 'FIRESTORE',
-        isNetworkError: err?.code === 'unavailable',
-      });
+  /* ---------- Iniciar / retomar / concluir experiencia ---------- */
+  const handleStartExperience = (experience) => {
+    if (!session.user) {
+      // Sin cuenta: se pide registro y se retoma esta experiencia al terminar.
+      setPendingExperience(experience);
+      setShowProfileModal(true);
+      return;
     }
-};
+    setActiveTab('escaner-ar');
+    startOrResume(experience); // reanuda si ya estaba en curso y dentro de tiempo
+  };
 
-const handleConcludeMission = async () => {
-    if (activeParticipation) {
-      try {
-        await finishParticipation(activeParticipation.id, {
-          estado: 'completada',
-          startedAtMs: activeParticipation.startedAtMs,
-          puntajeFinal: selectedMission?.puntos ?? null,
-        });
-      } catch (err) {
-        setApiError({
-          message: describeFirestoreError(err),
-          code: err?.code ?? 'FIRESTORE',
-          isNetworkError: err?.code === 'unavailable',
-        });
-      }
+  // Cuando aparece el usuario y había una experiencia pendiente, la inicia.
+  useEffect(() => {
+    if (session.user && pendingExperience) {
+      const exp = pendingExperience;
+      setPendingExperience(null);
+      setActiveTab('escaner-ar');
+      startOrResume(exp);
     }
-    setActiveParticipation(null);
-    setSelectedMission(null);
-    setActiveTab('misiones');
+  }, [session.user, pendingExperience, startOrResume]);
+
+  const handleConcludeExperience = async () => {
+    await conclude();
+    setActiveTab('experiencias');
+  };
+
+  const handleAbandonExperience = async () => {
+    await abandon();
+    setActiveTab('experiencias');
+  };
+
+  const handleLogout = () => {
+    reset();
+    setPendingExperience(null);
+    setShowAdminModal(false);
+    setActiveTab('experiencias');
   };
 
   return (
@@ -125,7 +168,7 @@ const handleConcludeMission = async () => {
 
       <ErrorBanner
         error={apiError}
-        onRetry={handleRetry}
+        onRetry={onRetry}
         onDismiss={() => setApiError(null)}
         isRetrying={isRetrying}
       />
@@ -136,34 +179,36 @@ const handleConcludeMission = async () => {
             onDismiss={() => setShowOnboarding(false)}
             onCameraGranted={() => {
               setShowOnboarding(false);
-              setActiveTab('misiones');
+              setActiveTab('experiencias');
             }}
+            isAdmin={isAdmin}
             onAdminAccess={() => setShowAdminModal(true)}
           />
         ) : (
           <>
-            {activeTab === 'misiones' && (
-              <MissionsScreen
-                missions={missions}
+            {activeTab === 'experiencias' && (
+              <ExperiencesScreen
+                experiences={experiences}
                 participant={participant}
-                onStartMission={handleStartMission}
-                isLoading={loadingMissions}
+                onStartExperience={handleStartExperience}
+                isLoading={loadingExperiences}
               />
             )}
 
             {activeTab === 'escaner-ar' && (
-              <ComingSoonScreen
-                title={selectedMission?.nombre ?? 'Escáner de Entorno y Visor de IA'}
-                sprintLabel="Sprint 2"
-                onBack={() => setActiveTab('misiones')}
-                onConclude={activeParticipation ? handleConcludeMission : undefined}
+              <ScannerScreen
+                onBack={() => setActiveTab('experiencias')}
+                onConclude={active ? handleConcludeExperience : undefined}
+                onAbandon={active ? handleAbandonExperience : undefined}
+                onError={onServiceError}
               />
             )}
+
             {activeTab === 'asistente-ia' && (
               <ComingSoonScreen
                 title="Chatbot de Asistencia IA"
                 sprintLabel="Sprint 3"
-                onBack={() => setActiveTab('misiones')}
+                onBack={() => setActiveTab('experiencias')}
               />
             )}
 
@@ -171,7 +216,7 @@ const handleConcludeMission = async () => {
               <ComingSoonScreen
                 title="Resultados y Recompensas"
                 sprintLabel="Sprint 5"
-                onBack={() => setActiveTab('misiones')}
+                onBack={() => setActiveTab('experiencias')}
               />
             )}
           </>
@@ -188,13 +233,24 @@ const handleConcludeMission = async () => {
       />
 
       <RegistrationModal
-        profile={participant}
         isOpen={showProfileModal}
         onClose={() => setShowProfileModal(false)}
-        onSaveProfile={(updated) => setParticipant(updated)}
+        onCancel={() => {
+          setShowProfileModal(false);
+          setPendingExperience(null);
+        }}
+        user={session.user}
+        profile={session.profile}
+        isAdmin={isAdmin}
+        onOpenAdmin={() => setShowAdminModal(true)}
+        onLogout={handleLogout}
       />
 
-      <AdminLoginModal isOpen={showAdminModal} onClose={() => setShowAdminModal(false)} />
+      {showAdminModal && isAdmin && (
+        <div className="fixed inset-0 z-[60] overflow-y-auto bg-[#131027]">
+          <AdminExperiencesScreen onClose={() => setShowAdminModal(false)} />
+        </div>
+      )}
     </div>
   );
 }
