@@ -288,8 +288,8 @@ export async function seedExperiences() {
     },
     {
       id: "EXP-002",
-      nombre: "Decodificador de Señales NFC",
-      descripcion: "Triangula el paquete de datos acercando tu terminal a tres balizas.",
+      nombre: "Decodificador de Señales",
+      descripcion: "Triangula el paquete de datos siguiendo las balizas del stand.",
       duracion: 8,
       dificultad: "facil",
       puntos: 600,

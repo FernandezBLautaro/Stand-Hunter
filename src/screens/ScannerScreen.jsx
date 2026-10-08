@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { QrScanner } from '../components/QrScanner.jsx';
-import { NfcScanModal } from '../components/NfcScanModal.jsx';
 import { ProgressBar } from '../components/ProgressBar.jsx';
 import { InfoModal } from '../components/InfoModal.jsx';
 import { useParticipation } from '../context/ParticipationContext.jsx';
@@ -18,10 +17,8 @@ const formatTime = (ms) => {
 
 /**
  * ESC01 + ESC02 + ESC03 + ESC09 — Entrega de la experiencia, búsqueda de pistas,
- * escaneo QR/NFC, barra de progreso y cuenta regresiva.
+ * escaneo QR, barra de progreso y cuenta regresiva.
  * La experiencia y la participación vienen de ParticipationContext.
- *
- * El botón de acción depende del tipo (qr | nfc) del elemento físico del desafío actual.
  *
  * @param {{
  *   onBack: () => void,
@@ -44,7 +41,6 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
   const [elementos, setElementos] = useState([]);
   const [found, setFound] = useState(() => new Set());
   const [scanning, setScanning] = useState(false);
-  const [nfcOpen, setNfcOpen] = useState(false);
   const [manualCode, setManualCode] = useState('');
   const [feedback, setFeedback] = useState(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -90,9 +86,7 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
 
   // Etapas = desafíos con elemento físico asociado (ADM16). Si el admin todavía no vinculó
   // ninguno, se muestran los elementos sueltos para que la experiencia igual sea jugable.
-  // Cada etapa lleva el `tipo` del elemento físico (qr | nfc) para adaptar el botón.
   const etapas = useMemo(() => {
-    const tipoDe = (codigo) => elementos.find((e) => e.codigoIdentificador === codigo)?.tipo ?? 'qr';
     const vinculadas = (experience?.desafios ?? [])
       .filter((d) => d.elementoFisicoId)
       .map((d) => {
@@ -102,7 +96,7 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
           codigo,
           titulo: d.titulo,
           descripcion: d.descripcion,
-          tipo: tipoDe(codigo),
+          tipo: 'qr',
         };
       });
     if (vinculadas.length) return vinculadas;
@@ -111,7 +105,7 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
       codigo: e.codigoIdentificador,
       titulo: e.nombre,
       descripcion: e.ubicacion,
-      tipo: e.tipo ?? 'qr',
+      tipo: 'qr',
     }));
   }, [experience, elementos]);
 
@@ -123,10 +117,7 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
   const resueltas = etapas.slice(0, encontradas);
   const tiempoAgotado = !active && !!expiredInfo;
 
-  // Tipo de lectura del desafío actual → decide qué botón se muestra.
-  const tipoActual = etapaActual?.tipo === 'nfc' ? 'nfc' : 'qr';
-  // NFC siempre muestra su botón (el modal explica si el dispositivo no soporta NFC).
-  const esNfc = tipoActual === 'nfc';
+  const tipoActual = 'qr';
 
   const showFeedback = (type, text) => {
     setFeedback({ type, text });
@@ -134,7 +125,7 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
     feedbackTimer.current = setTimeout(() => setFeedback(null), 3500);
   };
 
-  /** Procesa un código leído (QR, NFC o manual). Devuelve el resultado para que el modal NFC lo refleje. */
+  /** Procesa un código leído (QR o manual). */
   const handleCode = async (raw) => {
     if (tiempoAgotado) return null;
     const codigo = parseScanPayload(raw);
@@ -174,9 +165,6 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
   };
   handleCodeRef.current = handleCode;
 
-  // Estable para el modal NFC: siempre usa la versión más reciente de handleCode.
-  const handleNfcRead = (text) => handleCodeRef.current?.(text);
-
   const submitManual = (e) => {
     e.preventDefault();
     if (!manualCode.trim()) return;
@@ -187,7 +175,6 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
   // Cierre del modal de tiempo agotado (botón, X, fondo o Escape): limpia y vuelve a Experiencias.
   const handleExpiredClose = () => {
     setScanning(false);
-    setNfcOpen(false);
     dismissExpired();
     onBack();
   };
@@ -305,29 +292,17 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
         )}
       </div>
 
-      {/* ESC03 — Acciones de escaneo: cambian según el tipo del elemento del desafío actual */}
+      {/* ESC03 — Acciones de escaneo */}
       <div className="flex gap-2">
-        {esNfc ? (
-          <button
-            type="button"
-            onClick={() => setNfcOpen(true)}
-            disabled={tiempoAgotado}
-            className="flex-1 h-14 rounded-xl bg-[#ff027f] hover:bg-[#ff027f]/90 text-white font-headline-sm text-[15px] font-bold flex items-center justify-center gap-2 shadow-[0_0_24px_rgba(255,2,127,0.55)] active:scale-[0.98] transition-transform cursor-pointer disabled:opacity-40"
-          >
-            <span className="material-symbols-outlined text-[22px]">nfc</span>
-            Leer tag NFC
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setScanning(true)}
-            disabled={tiempoAgotado}
-            className="flex-1 h-14 rounded-xl bg-[#ff027f] hover:bg-[#ff027f]/90 text-white font-headline-sm text-[15px] font-bold flex items-center justify-center gap-2 shadow-[0_0_24px_rgba(255,2,127,0.55)] active:scale-[0.98] transition-transform cursor-pointer disabled:opacity-40"
-          >
-            <span className="material-symbols-outlined text-[22px]">qr_code_scanner</span>
-            Escanear QR
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => setScanning(true)}
+          disabled={tiempoAgotado}
+          className="flex-1 h-14 rounded-xl bg-[#ff027f] hover:bg-[#ff027f]/90 text-white font-headline-sm text-[15px] font-bold flex items-center justify-center gap-2 shadow-[0_0_24px_rgba(255,2,127,0.55)] active:scale-[0.98] transition-transform cursor-pointer disabled:opacity-40"
+        >
+          <span className="material-symbols-outlined text-[22px]">qr_code_scanner</span>
+          Escanear QR
+        </button>
       </div>
 
       {/* ESC02 — Desafío actual (uno a la vez) */}
@@ -360,9 +335,7 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
                   Desafío {indiceActual + 1} de {etapas.length}
                 </p>
                 <span className="shrink-0 px-2 py-0.5 rounded-full bg-[#0e0b21] border border-[#00eefc]/30 text-[10px] text-[#00eefc] flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[12px]">
-                    {tipoActual === 'nfc' ? 'nfc' : 'qr_code_2'}
-                  </span>
+                  <span className="material-symbols-outlined text-[12px]">qr_code_2</span>
                   {TIPO_ELEMENTO_LABEL[tipoActual] ?? tipoActual}
                 </span>
               </div>
@@ -382,7 +355,7 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
         )}
       </section>
 
-      {/* Ingreso manual: respaldo si la cámara/NFC falla o el código está dañado */}
+      {/* Ingreso manual: respaldo si la cámara falla o el código está dañado */}
       <form onSubmit={submitManual} className="flex gap-2">
         <input
           type="text"
@@ -423,14 +396,6 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
       </div>
 
       {scanning && !tiempoAgotado && <QrScanner onDetect={handleCode} onClose={() => setScanning(false)} />}
-
-      {nfcOpen && !tiempoAgotado && (
-        <NfcScanModal
-          titulo={etapaActual?.titulo}
-          onRead={handleNfcRead}
-          onClose={() => setNfcOpen(false)}
-        />
-      )}
 
       {expiredModal}
 

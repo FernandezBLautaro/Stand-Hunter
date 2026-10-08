@@ -39,13 +39,13 @@
  * @property {string} creadoEl
  * 
  *
- * @typedef {'qr' | 'nfc'} TipoElemento
+ * @typedef {'qr'} TipoElemento
  *
  * @typedef {Object} ElementoFisico
  * @property {string} id
  * @property {string} experienciaId
  * @property {string} nombre
- * @property {string} codigoIdentificador  único por experiencia, en mayúsculas (lo que codifica el QR/NFC)
+ * @property {string} codigoIdentificador  único por experiencia, en mayúsculas (lo que codifica el QR)
  * @property {TipoElemento} tipo
  * @property {string} ubicacion
  * @property {*} creadoEl

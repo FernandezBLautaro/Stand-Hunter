@@ -3,8 +3,8 @@
 //   id                   string  (Firestore)
 //   experienciaId        string  (FK a experiences)
 //   nombre               string  máx 80
-//   codigoIdentificador  string  ÚNICO en todo el inventario, en MAYÚSCULAS (lo que codifica el QR/NFC)
-//   tipo                 'qr' | 'nfc'
+//   codigoIdentificador  string  ÚNICO en todo el inventario, en MAYÚSCULAS (lo que codifica el QR)
+//   tipo                 'qr'
 //   ubicacion            string  pista para el staff / texto de ayuda
 //   creadoEl             timestamp
 //
@@ -20,18 +20,18 @@ import { db } from "../firebase";
 const COLLECTION = "elementos_fisicos";
 const ref = () => collection(db, COLLECTION);
 
-export const TIPOS_ELEMENTO = ["qr", "nfc"];
-export const TIPO_ELEMENTO_LABEL = { qr: "QR", nfc: "NFC" };
+export const TIPOS_ELEMENTO = ["qr"];
+export const TIPO_ELEMENTO_LABEL = { qr: "QR" };
 const normalizeTipo = (tipo) => (TIPOS_ELEMENTO.includes(tipo) ? tipo : "qr"); // docs legados con 'ambos' pasan a 'qr'
 
-/** Prefijo que va dentro del QR/NFC para distinguir códigos de StandHunter de cualquier otro QR. */
+/** Prefijo que va dentro del QR para distinguir códigos de StandHunter de cualquier otro QR. */
 export const QR_PREFIX = "SH:";
 export const buildQrPayload = (codigo) => `${QR_PREFIX}${codigo}`;
 
 export const normalizeCode = (value) => String(value ?? "").trim().toUpperCase();
 
 /**
- * Convierte lo que lee la cámara/NFC en un código normalizado.
+ * Convierte lo que lee la cámara en un código normalizado.
  * Acepta "SH:TOTEM-A12", una URL con ?el=TOTEM-A12 o el código a secas.
  */
 export function parseScanPayload(raw) {
@@ -48,13 +48,12 @@ export function parseScanPayload(raw) {
   return normalizeCode(text);
 }
 
-/** Formato válido de un código: letras, números, guion, guion bajo y ":" (números de serie NFC). */
+/** Formato válido de un código: letras, números, guion, guion bajo y ":". */
 const CODE_PATTERN = /^[A-Z0-9][A-Z0-9:_-]{1,59}$/;
 
 /**
- * ADM15 — Valida lo leído por QR/NFC para autocompletar el campo.
- * Devuelve el código normalizado, o "" si no es un código válido
- * (p. ej. un QR con una URL cualquiera).
+ * ADM15 — Valida lo leído por QR para autocompletar el campo.
+ * Devuelve el código normalizado, o "" si no es un código válido.
  */
 export function parseCapturedCode(raw) {
   const codigo = parseScanPayload(raw).replace(/\s+/g, "-");

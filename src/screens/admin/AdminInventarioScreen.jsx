@@ -9,8 +9,6 @@ import {
   generateCode, normalizeCode, buildQrPayload, parseCapturedCode, findCodeConflict,
   TIPOS_ELEMENTO, TIPO_ELEMENTO_LABEL,
 } from '../../services/elementosService.js';
-import { isNfcSupported } from '../../services/nfc.js';
-import { NfcToolsModal } from '../../components/NfcToolsModal.jsx';
 import { QrScanner } from '../../components/QrScanner.jsx';
 
 const inputBase =
@@ -26,7 +24,7 @@ const newDraft = () => ({
 });
 
 /**
- * Sprint 2 — Inventario de elementos físicos (ADM14), códigos QR/NFC (ADM15)
+ * Sprint 2 — Inventario de elementos físicos (ADM14), códigos QR (ADM15)
  * y vínculo con las pistas (ADM16).
  *
  * @param {{ onClose?: () => void, onNavigate: (section: string) => void }} props
@@ -41,7 +39,6 @@ export default function AdminInventarioScreen({ onClose, onNavigate }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [qrFor, setQrFor] = useState(null);
   const [qrUrl, setQrUrl] = useState('');
-  const [nfcTools, setNfcTools] = useState(null); // null = cerrado, o { codigo, onPick? }
   const [qrScanOpen, setQrScanOpen] = useState(false);
   const [conflict, setConflict] = useState(null); // elemento que ya usa el código del borrador
   const [toast, setToast] = useState({ visible: false, mensaje: '', error: false });
@@ -201,25 +198,6 @@ export default function AdminInventarioScreen({ onClose, onNavigate }) {
     }
   };
 
-  /* ---------- NFC ---------- */
-
-  const openNfcReader = () =>
-    setNfcTools({
-      codigo: draft.codigoIdentificador,
-      onPick: (c) => {
-        patch({ codigoIdentificador: c });
-        showToast('Código capturado desde el tag NFC.');
-      },
-    });
-
-  /** Al elegir NFC se abren las herramientas NFC para leer/grabar el tag. */
-  const selectTipo = (t) => {
-    patch({ tipo: t });
-    if (t === 'qr') return;
-    if (isNfcSupported()) openNfcReader();
-    else showToast('Este dispositivo o navegador no soporta NFC (se necesita Chrome en Android).', true);
-  };
-
   // ADM15 — Autocompleta el código con lo leído por la cámara.
   const handleQrDetect = (raw) => {
     const codigo = parseCapturedCode(raw);
@@ -233,9 +211,6 @@ export default function AdminInventarioScreen({ onClose, onNavigate }) {
   };
 
   const closeQr = () => setQrFor(null);
-
-
-  /* ---------------------------------------------------------------- */
 
   return (
     <div className="min-h-screen bg-[#131027] text-[#e5defe] flex flex-col selection:bg-[#00eefc] selection:text-[#002022]">
@@ -291,7 +266,7 @@ export default function AdminInventarioScreen({ onClose, onNavigate }) {
       <main className="flex-1 w-full pt-16 pb-24 max-w-[480px] mx-auto">
         <div className="px-4 pt-4 pb-2 flex flex-col gap-3">
           <p className="text-[12px] text-[#c9c5d0]">
-            Registrá los objetos del stand, generá su QR o NFC y vinculalos con la pista que desbloquean.
+            Registrá los objetos del stand, generá su QR y vinculalos con la pista que desbloquean.
           </p>
           <div>
             <label htmlFor="inv-exp" className="text-[12px] text-[#c9c5d0] block mb-1">Experiencia</label>
@@ -456,16 +431,6 @@ export default function AdminInventarioScreen({ onClose, onNavigate }) {
                   >
                     <span className="material-symbols-outlined text-[20px]">qr_code_scanner</span>
                   </button>
-                  {isNfcSupported() && (
-                    <button
-                      type="button"
-                      onClick={openNfcReader}
-                      aria-label="Capturar código desde un tag NFC"
-                      className="w-11 h-11 rounded-lg bg-[#2a273e] hover:bg-[#35324a] flex items-center justify-center cursor-pointer shrink-0"
-                    >
-                      <span className="material-symbols-outlined text-[20px]">nfc</span>
-                    </button>
-                  )}
                 </div>
                 {conflict && (
                   <p role="alert" className="text-[12px] text-[#ff027f] mt-1 flex items-start gap-1">
@@ -484,23 +449,9 @@ export default function AdminInventarioScreen({ onClose, onNavigate }) {
                 </p>
               </div>
 
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[12px] text-[#c9c5d0]">Tecnología</span>
-                <div className="grid grid-cols-2 gap-1.5 bg-[#0e0b21] p-1 rounded-lg">
-                  {TIPOS_ELEMENTO.map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      aria-pressed={draft.tipo === t}
-                      onClick={() => selectTipo(t)}
-                      className={`py-2 rounded-md text-[12px] cursor-pointer ${
-                        draft.tipo === t ? 'bg-[#00eefc] text-[#002022] font-semibold' : 'text-[#c9c5d0] hover:text-[#e5defe]'
-                      }`}
-                    >
-                      {TIPO_ELEMENTO_LABEL[t]}
-                    </button>
-                  ))}
-                </div>
+              <div className="rounded-lg border border-[#00eefc]/20 bg-[#0e0b21] px-3 py-2 text-[12px] text-[#7df4ff] flex items-center justify-between">
+                <span>Tecnología</span>
+                <span className="font-semibold">QR</span>
               </div>
 
               <div>
@@ -578,7 +529,7 @@ export default function AdminInventarioScreen({ onClose, onNavigate }) {
         </>
       )}
 
-      {/* Código QR / NFC (ADM15) */}
+      {/* Código QR (ADM15) */}
       {qrFor && (
         <div className="fixed inset-0 z-[65] bg-[#0e0b21]/90 backdrop-blur-md flex items-center justify-center p-4" onClick={closeQr}>
           <div
@@ -608,30 +559,12 @@ export default function AdminInventarioScreen({ onClose, onNavigate }) {
                 <span className="material-symbols-outlined text-[18px]">download</span>
                 Descargar PNG
               </a>
-              {isNfcSupported() && (
-                <button
-                  type="button"
-                  onClick={() => setNfcTools({ codigo: qrFor.codigoIdentificador })}
-                  className="px-4 h-11 rounded-lg bg-[#2a273e] text-[#e5defe] text-[13px] font-semibold flex items-center gap-1.5 cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[18px]">nfc</span>
-                  Herramientas NFC
-                </button>
-              )}
             </div>
             <button type="button" onClick={closeQr} className="text-[12px] text-[#c9c5d0] hover:text-[#e5defe] cursor-pointer">
               Cerrar
             </button>
           </div>
         </div>
-      )}
-
-      {nfcTools && (
-        <NfcToolsModal
-          codigo={nfcTools.codigo}
-          onPickCode={nfcTools.onPick}
-          onClose={() => setNfcTools(null)}
-        />
       )}
 
       {qrScanOpen && <QrScanner onDetect={handleQrDetect} onClose={() => setQrScanOpen(false)} />}
