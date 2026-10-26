@@ -1,5 +1,5 @@
 // DAT01/DAT02 — Registro de participaciones.
-import { collection, doc, addDoc, updateDoc, onSnapshot, serverTimestamp, getDocs, query, where } from "firebase/firestore";
+import { collection, doc, addDoc, updateDoc, onSnapshot, serverTimestamp, getDocs, query, where, writeBatch } from "firebase/firestore";
 import { db } from "../firebase";
 
 const COLLECTION = "participaciones";
@@ -105,4 +105,25 @@ export function summarizeByExperience(participations) {
     map.set(key, entry);
   }
   return map;
+}
+
+const BATCH_LIMIT = 500; // máximo de operaciones por writeBatch en Firestore
+
+/**
+ * Borra TODAS las participaciones (cualquier estado) de una experiencia.
+ * Una sola igualdad → no requiere índice compuesto.
+ * Se parte en lotes de 500 porque Firestore no admite más por batch.
+ * @returns {Promise<number>} cantidad de participaciones eliminadas
+ */
+export async function deleteParticipationsByExperience(experienciaId) {
+  if (!experienciaId) throw new Error("Falta el id de la experiencia.");
+  const snap = await getDocs(
+    query(participationsRef(), where("experienciaId", "==", String(experienciaId)))
+  );
+  for (let i = 0; i < snap.docs.length; i += BATCH_LIMIT) {
+    const batch = writeBatch(db);
+    snap.docs.slice(i, i + BATCH_LIMIT).forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }
+  return snap.size;
 }

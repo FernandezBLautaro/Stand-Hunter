@@ -15,7 +15,6 @@ export const TIPO_ADMIN = "administrador";
 const userRef = (uid) => doc(db, "usuarios", uid);
 
 async function createUserDoc(user, { nickname }) {
-  // Las reglas solo permiten crear con tipo == 'jugador'.
   await setDoc(userRef(user.uid), {
     nombre: nickname,
     email: user.email,
@@ -39,7 +38,6 @@ export async function registerUser({ nickname, email, password }) {
 
 export async function loginUser({ email, password }) {
   const { user } = await signInWithEmailAndPassword(auth, email.trim(), password);
-  // Cuentas creadas antes de este cambio (o con documento faltante): se completan al ingresar.
   const snap = await getDoc(userRef(user.uid));
   if (!snap.exists()) {
     await createUserDoc(user, { nickname: user.displayName || user.email.split("@")[0] });

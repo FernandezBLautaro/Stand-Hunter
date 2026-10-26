@@ -43,9 +43,8 @@
  *
  * @typedef {Object} ElementoFisico
  * @property {string} id
- * @property {string} experienciaId
  * @property {string} nombre
- * @property {string} codigoIdentificador  único por experiencia, en mayúsculas (lo que codifica el QR)
+ * @property {string} codigoIdentificador  único en todo el inventario, en mayúsculas (lo que codifica el QR)
  * @property {TipoElemento} tipo
  * @property {string} ubicacion
  * @property {*} creadoEl

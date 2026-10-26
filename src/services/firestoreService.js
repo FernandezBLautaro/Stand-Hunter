@@ -1,4 +1,3 @@
-// src/services/firestoreService.js
 // CRUD real de "experiences" sobre Firestore.
 //
 // Modelo alineado a "Diseño de Base de Datos" (entidad EXPERIENCIA) y types.js:
@@ -20,32 +19,65 @@
 //     criteriosValidacion (respuestas/patrones correctos), tiempoMaximo (s),
 //     puntosOtorgados, penalizacionPista, elementoFisicoId (nullable) }
 //
+// SPRINT 3: las respuestas correctas NO se guardan en el array público `desafios`. Viven en
+// experiences/{id}/secretos/{desafioId}, legible solo por administradores (las reglas de Firestore
+// sí lo leen para validar). 
+// 
+// Campos: criteriosValidacion (texto del admin), criteriosNorm (lista normalizada), 
+// codigoElementoNorm (QR vinculado) y previoId (desafío anterior en la secuencia).
+// Las pistas base (`pistasBase`) son públicas: orientan, no revelan la respuesta.
+//
 // Las escrituras las bloquean las reglas de Firestore (solo claim admin).
 // Este servicio valida y normaliza antes de escribir para no guardar basura.
 
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  setDoc,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
-  query,
-  where,
-  serverTimestamp,
-  writeBatch,
-} from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, setDoc, updateDoc, 
+         deleteDoc, onSnapshot, query, where, serverTimestamp, writeBatch} from "firebase/firestore";
 import { auth, db } from "../firebase";
+import { normalizarRespuesta, compactar, parseCriterios } from "../utils/normalizar.js";
+import { deleteParticipationsByExperience } from "./participationService.js";
 
 const COLLECTION = "experiences";
 const experiencesRef = () => collection(db, COLLECTION);
+const secretosRef = (expId) => collection(db, COLLECTION, expId, "secretos");
+const secretData = ({ id: _id, ...rest }) => rest;
+
+/** SOLO ADMIN — respuestas correctas de una experiencia: { [desafioId]: { criteriosValidacion } }. */
+export async function getSecretos(expId) {
+  const snap = await getDocs(secretosRef(expId));
+  const out = {};
+  snap.docs.forEach((d) => {
+    const x = d.data();
+    out[d.id] = {
+      criteriosValidacion: String(x.criteriosValidacion ?? ""),
+    };
+  });
+  return out;
+}
 
 export const TIPOS_VALIDACION = ["pregunta", "codigo", "voz"];
 export const DIFICULTADES = ["facil", "media", "dificil"];
 export const DIFICULTAD_LABEL = { facil: "Fácil", media: "Media", dificil: "Difícil" };
 const DEFAULT_DIFICULTAD = DIFICULTADES[0];
+
+/* Umbrales de dificultad (desafíos por minuto).*/
+export const DENSIDAD_MEDIA = 0.35;
+export const DENSIDAD_DIFICIL = 0.6;
+
+/**
+ * Duración y dificultad derivadas de los desafíos (el admin no las ingresa).
+ *  - duracion  = suma de tiempoMaximo (s) → minutos, redondeado hacia arriba (mín. 1)
+ *  - densidad  = cantidad de desafíos / minutos totales
+ */
+export function calcularDuracionYDificultad(desafios = []) {
+  const lista = Array.isArray(desafios) ? desafios : [];
+  const segundos = lista.reduce((acc, d) => acc + clamp(d?.tiempoMaximo, 30, 600, 120), 0);
+  const minutos = segundos / 60;
+  const duracion = Math.max(1, Math.ceil(minutos));
+  const densidad = minutos > 0 ? lista.length / minutos : 0;
+  const dificultad =
+    densidad >= DENSIDAD_DIFICIL ? "dificil" : densidad >= DENSIDAD_MEDIA ? "media" : "facil";
+  return { duracion, dificultad, densidad: Number(densidad.toFixed(2)), segundos };
+}
 
 
 /* ------------------------------------------------------------------ */
@@ -60,35 +92,47 @@ const clamp = (value, min, max, fallback) => {
 const uid = () =>
   globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2, 12);
 
-/** Desafío nuevo con valores por defecto (usado por el editor). */
+const publicChallenge = (index = 0) => ({
+  id: uid(),
+  titulo: `Desafío ${index + 1}`,
+  descripcion: "",
+  tipoValidacion: "pregunta",
+  tiempoMaximo: 120,
+  puntosOtorgados: 100,
+  penalizacionPista: 25,
+  elementoFisicoId: null,
+  pistasBase: [],
+});
+
+/** Desafío nuevo con valores por defecto (usado por el editor, incluye el campo secreto). */
 export function newChallenge(index = 0) {
-  return {
-    id: uid(),
-    titulo: `Desafío ${index + 1}`,
-    descripcion: "",
-    tipoValidacion: "pregunta",
-    criteriosValidacion: "",
-    tiempoMaximo: 120,
-    puntosOtorgados: 100,
-    penalizacionPista: 25,
-    elementoFisicoId: null,
-  };
+  return { ...publicChallenge(index), criteriosValidacion: "" };
 }
 
+/** → { pub, secret|null }. `secret` solo existe si el borrador trae criteriosValidacion (no pisa lo guardado). */
 function sanitizeChallenge(d, i) {
-  return {
-    id: d?.id || uid(),
+  const id = d?.id || uid();
+  const tipoValidacion = TIPOS_VALIDACION.includes(d?.tipoValidacion) ? d.tipoValidacion : "pregunta";
+  const pub = {
+    id,
     titulo: String(d?.titulo ?? `Desafío ${i + 1}`).trim().slice(0, 80) || `Desafío ${i + 1}`,
     descripcion: String(d?.descripcion ?? "").trim().slice(0, 400),
-    tipoValidacion: TIPOS_VALIDACION.includes(d?.tipoValidacion)
-      ? d.tipoValidacion
-      : "pregunta",
-    criteriosValidacion: String(d?.criteriosValidacion ?? "").trim().slice(0, 400),
+    tipoValidacion,
     tiempoMaximo: clamp(d?.tiempoMaximo, 30, 600, 120),
     puntosOtorgados: clamp(d?.puntosOtorgados, 50, 1000, 100),
     penalizacionPista: clamp(d?.penalizacionPista, 0, 200, 25),
     elementoFisicoId: d?.elementoFisicoId ? String(d.elementoFisicoId).trim().slice(0, 60) : null,
+    pistasBase: (Array.isArray(d?.pistasBase) ? d.pistasBase : [])
+      .map((p) => String(p ?? "").trim().slice(0, 300))
+      .filter(Boolean)
+      .slice(0, 5),
   };
+  if (d && "criteriosValidacion" in d) {
+    const raw = String(d.criteriosValidacion ?? "").trim().slice(0, 400);
+    const norm = [...new Set(parseCriterios(raw).map((c) => normalizarRespuesta(tipoValidacion, c)).filter(Boolean))];
+    return { pub, secret: { criteriosValidacion: raw, criteriosNorm: norm.slice(0, 20) } };
+  }
+  return { pub, secret: null };
 }
 
 /**
@@ -98,6 +142,7 @@ function sanitizeChallenge(d, i) {
 function sanitize(data, { partial = false } = {}) {
   const has = (k) => data[k] !== undefined;
   const out = {};
+  const secretos = [];
 
   if (!partial || has("nombre")) {
     const nombre = String(data.nombre ?? "").trim();
@@ -106,12 +151,6 @@ function sanitize(data, { partial = false } = {}) {
   }
   if (!partial || has("descripcion")) {
     out.descripcion = String(data.descripcion ?? "").trim().slice(0, 400);
-  }
-  if (!partial || has("duracion")) {
-    out.duracion = clamp(data.duracion, 1, 120, 10);
-  }
-  if (!partial || has("dificultad")) {
-    out.dificultad = DIFICULTADES.includes(data.dificultad) ? data.dificultad : DEFAULT_DIFICULTAD;
   }
   if (!partial || has("puntos")) {
     out.puntos = clamp(data.puntos, 0, 5000, 500);
@@ -127,12 +166,30 @@ function sanitize(data, { partial = false } = {}) {
     out.imagenUrl = /^https?:\/\//.test(url) ? url : "";
   }
   if (!partial || has("desafios")) {
-    out.desafios = (Array.isArray(data.desafios) ? data.desafios : []).map(sanitizeChallenge);
+    const pubs = [];
+    (Array.isArray(data.desafios) ? data.desafios : []).forEach((d, i) => {
+      const { pub, secret } = sanitizeChallenge(d, i);
+      pubs.push(pub);
+      // Siempre se actualizan el vínculo QR y el orden; los criterios solo si vinieron en el borrador.
+      secretos.push({
+        id: pub.id,
+        codigoElementoNorm:
+          pub.tipoValidacion === "codigo" && pub.elementoFisicoId ? compactar(pub.elementoFisicoId) : "",
+        previoId: i > 0 ? pubs[i - 1].id : "",
+        ...(secret ?? {}),
+      });
+    });
+    out.desafios = pubs;
+
+    // Duración y dificultad derivadas (se recalculan cada vez que cambian los desafíos).
+    const { duracion, dificultad } = calcularDuracionYDificultad(pubs);
+    out.duracion = duracion;
+    out.dificultad = dificultad;
   }
   if (has("activa")) {
     out.activa = Boolean(data.activa);
   }
-  return out;
+  return { data: out, secretos };
 }
 
 /** DocumentSnapshot → objeto plano listo para la UI. */
@@ -145,7 +202,7 @@ function fromDoc(snap) {
     dificultad: DIFICULTADES.includes(data.dificultad) ? data.dificultad : DEFAULT_DIFICULTAD,
     activa: data.activa === true,
     desafios: (data.desafios ?? []).map((d, i) => ({
-      ...newChallenge(i),
+      ...publicChallenge(i),
       ...d,
       id: d.id || `${snap.id}-${i}`,
     })),
@@ -201,13 +258,12 @@ export async function registerParticipant(data) {
  * publicarla en la PWA. Devuelve el id generado.
  */
 export async function createExperience(data) {
-  const clean = sanitize(data);
+  const { data: clean, secretos } = sanitize(data);
   const ref = doc(experiencesRef()); // id generado en cliente
-  await setDoc(ref, {
-    ...clean,
-    activa: data.activa === true,
-    creadoEl: serverTimestamp(),
-  });
+  const batch = writeBatch(db);
+  batch.set(ref, { ...clean, activa: data.activa === true, creadoEl: serverTimestamp() });
+  secretos.forEach((sec) => batch.set(doc(secretosRef(ref.id), sec.id), secretData(sec)));
+  await batch.commit();
   return ref.id;
 }
 
@@ -217,8 +273,19 @@ export async function createExperience(data) {
 
 /** Actualiza solo los campos enviados. */
 export async function updateExperience(id, patch) {
-  const clean = sanitize(patch, { partial: true });
-  await updateDoc(doc(db, COLLECTION, id), clean);
+  const { data: clean, secretos } = sanitize(patch, { partial: true });
+  const batch = writeBatch(db);
+  batch.update(doc(db, COLLECTION, id), clean);
+  if (clean.desafios) {
+    // Secretos de desafíos que ya no existen se eliminan junto con la etapa.
+    const keep = new Set(clean.desafios.map((d) => d.id));
+    const existentes = await getDocs(secretosRef(id));
+    existentes.docs.forEach((s) => {
+      if (!keep.has(s.id)) batch.delete(s.ref);
+    });
+    secretos.forEach((sec) => batch.set(doc(secretosRef(id), sec.id), secretData(sec), { merge: true }));
+  }
+  await batch.commit();
 }
 
 /** Activa/oculta una experiencia en la PWA. */
@@ -232,8 +299,18 @@ export async function setExperienceActive(id, activa) {
 /* DELETE                                                             */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Elimina la experiencia y, en cascada, todas sus participaciones.
+ * Orden intencional: primero los hijos, después el padre. Si algo falla a
+ * mitad de camino, la experiencia sigue existiendo y el admin puede reintentar
+ * (al revés quedarían participaciones huérfanas imposibles de limpiar desde la UI).
+ * @returns {Promise<number>} participaciones eliminadas
+ */
+
 export async function deleteExperience(id) {
+  const eliminadas = await deleteParticipationsByExperience(id);
   await deleteDoc(doc(db, COLLECTION, id));
+  return eliminadas;
 }
 
 /* ------------------------------------------------------------------ */
@@ -259,6 +336,7 @@ export async function seedExperiences() {
           descripcion: "Encontrá el tótem de entrada y escaneá su código para activar el núcleo.",
           tipoValidacion: "codigo",
           criteriosValidacion: "TOTEM-A12",
+          pistasBase: ["Buscá un objeto alto cerca de la entrada del stand.", "Tiene un QR pegado a la altura de los ojos."],
           tiempoMaximo: 180,
           puntosOtorgados: 250,
           penalizacionPista: 50,
@@ -268,7 +346,8 @@ export async function seedExperiences() {
           titulo: "Enigma del Tablero de Circuitos",
           descripcion: "Respondé la consigna del tablero de circuitos para estabilizar la matriz.",
           tipoValidacion: "pregunta",
-          criteriosValidacion: "42",
+          criteriosValidacion: "42 | cuarenta y dos",
+          pistasBase: ["Es un número. Fijate en el tablero de circuitos.", "Es la respuesta a la pregunta fundamental de la vida, el universo y todo lo demás."],
           tiempoMaximo: 240,
           puntosOtorgados: 350,
           penalizacionPista: 50,
@@ -278,7 +357,8 @@ export async function seedExperiences() {
           titulo: "Reconocimiento por Voz",
           descripcion: "Dictá el código de autodestrucción cancelada al asistente de voz.",
           tipoValidacion: "voz",
-          criteriosValidacion: "cancelar autodestruccion",
+          criteriosValidacion: "cancelar autodestruccion | cancelar la autodestruccion",
+          pistasBase: ["Es una orden corta, dicha en voz clara.", "La orden empieza con «cancelar»."],
           tiempoMaximo: 120,
           puntosOtorgados: 400,
           penalizacionPista: 50,
@@ -316,11 +396,9 @@ export async function seedExperiences() {
 
   const batch = writeBatch(db);
   seeds.forEach(({ id, activa, ...rest }) => {
-    batch.set(doc(db, COLLECTION, id), {
-      ...sanitize(rest),
-      activa,
-      creadoEl: serverTimestamp(),
-    });
+    const { data, secretos } = sanitize(rest);
+    batch.set(doc(db, COLLECTION, id), { ...data, activa, creadoEl: serverTimestamp() });
+    secretos.forEach((sec) => batch.set(doc(secretosRef(id), sec.id), secretData(sec)));
   });
   await batch.commit();
 }

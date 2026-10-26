@@ -8,7 +8,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 // } from "../../services/adminService.js";
 import {
   subscribeExperiences, createExperience, updateExperience, setExperienceActive, deleteExperience, seedExperiences,
-  newChallenge, describeFirestoreError, TIPOS_VALIDACION, DIFICULTADES, DIFICULTAD_LABEL
+  newChallenge, getSecretos, describeFirestoreError, TIPOS_VALIDACION, DIFICULTAD_LABEL, calcularDuracionYDificultad,
 } from "../../services/firestoreService.js";
 import { subscribeParticipations, summarizeByExperience } from "../../services/participationService.js";
 import { AdminBottomNav } from "../../components/AdminBottomNav.jsx";
@@ -22,8 +22,6 @@ const EMPTY_DRAFT = {
   id: null,
   nombre: "",
   descripcion: "",
-  duracion: 10,
-  dificultad: DIFICULTADES[0],
   puntos: 500,
   locacion: "",
   tematica: "",
@@ -65,9 +63,9 @@ function AdminPanel({ onClose, onNavigate }) {
   const toastTimer = useRef(null);
   const [participations, setParticipations] = useState([]);
   const statsByExp = useMemo(() => summarizeByExperience(participations), [participations]);
+  const calculado = useMemo(() => calcularDuracionYDificultad(draft.desafios), [draft.desafios]);
+
   useEffect(() => subscribeParticipations(setParticipations, () => { }), []);
-
-
   useEffect(() => () => clearTimeout(toastTimer.current), []);
 
   const showToast = useCallback((mensaje, error = false) => {
@@ -93,18 +91,28 @@ function AdminPanel({ onClose, onNavigate }) {
 
   /* ---------- editor ---------- */
 
-  const openEditor = (exp) => {
+  const openEditor = async (exp) => {
+    // Las respuestas correctas viven en una subcolección solo-admin (ver SPRINT3.md).
+    let secretos;
+    try {
+      secretos = await getSecretos(exp.id);
+    } catch (err) {
+      showToast(describeFirestoreError(err), true);
+      return; // sin los secretos cargados, guardar los borraría
+    }
     setDraft({
       id: exp.id,
       nombre: exp.nombre ?? "",
       descripcion: exp.descripcion ?? "",
-      duracion: exp.duracion ?? 10,
-      dificultad: exp.dificultad ?? DIFICULTADES[0],
       puntos: exp.puntos ?? 500,
       locacion: exp.locacion ?? "",
       tematica: exp.tematica ?? "",
       imagenUrl: exp.imagenUrl ?? "",
-      desafios: (exp.desafios ?? []).map((d) => ({ ...d })),
+      desafios: (exp.desafios ?? []).map((d) => ({
+        ...d,
+        // `?? d.criteriosValidacion`: migra experiencias guardadas antes del Sprint 3 (criterio embebido).
+        criteriosValidacion: secretos[d.id]?.criteriosValidacion ?? d.criteriosValidacion ?? "",
+      })),
     });
     setExpandedId(null);
     setConfirmDelete(false);
@@ -157,14 +165,35 @@ function AdminPanel({ onClose, onNavigate }) {
       showToast("Ponele un nombre a la experiencia antes de guardar.", true);
       return;
     }
+    // ADM09 — un desafío que no puede validarse bloquea el guardado.
+    const sinRespuesta = draft.desafios.findIndex((d) => {
+      const tieneCriterio = String(d.criteriosValidacion ?? "").trim().length > 0;
+      return d.tipoValidacion === "codigo" ? !tieneCriterio && !d.elementoFisicoId : !tieneCriterio;
+    });
+    if (sinRespuesta >= 0) {
+      setTab("b");
+      setExpandedId(draft.desafios[sinRespuesta].id);
+      showToast(
+        `El desafío ${sinRespuesta + 1} no tiene respuesta correcta cargada: no podría validarse.`,
+        true
+      );
+      return;
+    }
+    // ADM10 — sin pistas base no bloquea, pero se advierte.
+    const sinPistas = draft.desafios.filter(
+      (d) => !(d.pistasBase ?? []).some((p) => String(p).trim())
+    ).length;
+    const aviso = sinPistas
+      ? ` Ojo: ${sinPistas} desafío(s) sin pistas base; los participantes podrían quedar bloqueados.`
+      : "";
     setSaving(true);
     try {
       if (draft.id) {
         await updateExperience(draft.id, draft);
-        showToast("Cambios guardados.");
+        showToast(`Cambios guardados.${aviso}`, !!aviso);
       } else {
         await createExperience(draft);
-        showToast("Experiencia creada. Está oculta hasta que la actives.");
+        showToast(`Experiencia creada. Está oculta hasta que la actives.${aviso}`, !!aviso);
       }
       closeEditor();
     } catch (err) {
@@ -194,8 +223,12 @@ function AdminPanel({ onClose, onNavigate }) {
     }
     setSaving(true);
     try {
-      await deleteExperience(draft.id);
-      showToast("Experiencia eliminada.");
+      const eliminadas = await deleteExperience(draft.id);
+      showToast(
+        eliminadas > 0
+          ? `Experiencia eliminada junto con ${eliminadas} ${eliminadas === 1 ? "participación" : "participaciones"}.`
+          : "Experiencia eliminada."
+      );
       closeEditor();
     } catch (err) {
       showToast(describeFirestoreError(err), true);
@@ -522,76 +555,51 @@ function AdminPanel({ onClose, onNavigate }) {
                   className={`${inputBase} py-2 resize-none`}
                 />
               </div>
-
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[12px] text-[#c9c5d0]">Dificultad</span>
-                <div className="grid grid-cols-3 gap-1.5 bg-[#0e0b21] p-1 rounded-lg">
-                  {DIFICULTADES.map((dif) => (
-                    <button
-                      key={dif}
-                      type="button"
-                      aria-pressed={draft.dificultad === dif}
-                      onClick={() => patchDraft({ dificultad: dif })}
-                      className={`py-2 rounded-md text-[12px] flex items-center justify-center gap-1.5 cursor-pointer ${draft.dificultad === dif
-                        ? "bg-[#00eefc] text-[#002022] font-semibold"
-                        : "text-[#c9c5d0] hover:text-[#e5defe]"
-                        }`}
-                    >
-                      <span className="material-symbols-outlined text-[16px]">{DIFICULTAD_ICONO[dif]}</span>
-                      {DIFICULTAD_LABEL[dif]}
-                    </button>
-                  ))}
+              <div className="bg-[#0e0b21] p-3 rounded-xl border border-[#00eefc]/20 flex flex-col gap-2">
+                <span className="text-[12px] text-[#00eefc] font-semibold flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">calculate</span>
+                  Calculado automáticamente
+                </span>
+                <div className="grid grid-cols-2 gap-3 text-[12px] text-[#c9c5d0]">
+                  <span className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[16px]">timer</span>
+                    Duración: <strong className="text-[#7df4ff]">{calculado.duracion} min</strong>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[16px]">
+                      {DIFICULTAD_ICONO[calculado.dificultad]}
+                    </span>
+                    Dificultad: <strong className="text-[#7df4ff]">{DIFICULTAD_LABEL[calculado.dificultad]}</strong>
+                  </span>
                 </div>
+                <p className="text-[11px] text-[#c9c5d0]/70">
+                  {draft.desafios.length} {draft.desafios.length === 1 ? "desafío" : "desafíos"} ÷ {(calculado.segundos / 60).toFixed(1)} min
+                  = {calculado.densidad} desafíos/min. Se actualiza al agregar o editar desafíos en el Secuenciador.
+                </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <span className="text-[12px] text-[#c9c5d0] block mb-1">Duración estimada (minutos)</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      aria-label="Restar un minuto"
-                      className="w-9 h-10 rounded-lg bg-[#201d33] flex items-center justify-center text-[18px] font-bold cursor-pointer"
-                      onClick={() => patchDraft({ duracion: Math.max(1, Number(draft.duracion) - 1) })}
-                    >
-                      −
-                    </button>
-                    <div className="flex-1 bg-[#0e0b21] rounded-lg h-10 flex items-center justify-center font-headline-sm text-[16px] font-semibold text-[#7df4ff]">
-                      {draft.duracion} min
-                    </div>
-                    <button
-                      type="button"
-                      aria-label="Sumar un minuto"
-                      className="w-9 h-10 rounded-lg bg-[#201d33] flex items-center justify-center text-[18px] font-bold cursor-pointer"
-                      onClick={() => patchDraft({ duracion: Math.min(120, Number(draft.duracion) + 1) })}
-                    >
-                      +
-                    </button>
+              <div>
+                <span className="text-[12px] text-[#c9c5d0] block mb-1">Puntos</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    aria-label="Restar 50 puntos"
+                    className="w-9 h-10 rounded-lg bg-[#201d33] flex items-center justify-center text-[18px] font-bold cursor-pointer"
+                    onClick={() => patchDraft({ puntos: Math.max(0, Number(draft.puntos) - 50) })}
+                  >
+                    −
+                  </button>
+                  <div className="flex-1 bg-[#0e0b21] rounded-lg h-10 flex items-center justify-center font-headline-sm text-[16px] font-semibold text-[#7df4ff]">
+                    {draft.puntos} pts
                   </div>
-                </div>
-                <div>
-                  <span className="text-[12px] text-[#c9c5d0] block mb-1">Puntos</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      aria-label="Restar 50 puntos"
-                      className="w-9 h-10 rounded-lg bg-[#201d33] flex items-center justify-center text-[18px] font-bold cursor-pointer"
-                      onClick={() => patchDraft({ puntos: Math.max(0, Number(draft.puntos) - 50) })}
-                    >
-                      −
-                    </button>
-                    <div className="flex-1 bg-[#0e0b21] rounded-lg h-10 flex items-center justify-center font-headline-sm text-[16px] font-semibold text-[#7df4ff]">
-                      {draft.puntos} pts
-                    </div>
-                    <button
-                      type="button"
-                      aria-label="Sumar 50 puntos"
-                      className="w-9 h-10 rounded-lg bg-[#201d33] flex items-center justify-center text-[18px] font-bold cursor-pointer"
-                      onClick={() => patchDraft({ puntos: Math.min(5000, Number(draft.puntos) + 50) })}
-                    >
-                      +
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    aria-label="Sumar 50 puntos"
+                    className="w-9 h-10 rounded-lg bg-[#201d33] flex items-center justify-center text-[18px] font-bold cursor-pointer"
+                    onClick={() => patchDraft({ puntos: Math.min(5000, Number(draft.puntos) + 50) })}
+                  >
+                    +
+                  </button>
                 </div>
               </div>
 
@@ -767,7 +775,7 @@ function AdminPanel({ onClose, onNavigate }) {
 
                         <div>
                           <label htmlFor={`cv-${d.id}`} className="text-[12px] text-[#c9c5d0] block mb-1">
-                            Criterios de validación (respuestas correctas o patrón)
+                            Respuestas correctas (separá varias con |)
                           </label>
                           <input
                             id={`cv-${d.id}`}
@@ -775,10 +783,15 @@ function AdminPanel({ onClose, onNavigate }) {
                             value={d.criteriosValidacion ?? ""}
                             maxLength={400}
                             onChange={(e) => updateDesafio(d.id, "criteriosValidacion", e.target.value)}
-                            placeholder={d.tipoValidacion === "voz" ? "Ej. cancelar autodestruccion" : "Ej. 42"}
+                            placeholder={d.tipoValidacion === "voz" ? "Ej. cancelar autodestruccion | cancelar la autodestruccion" : "Ej. 42 | cuarenta y dos"}
                             className={`${inputBase} h-10`}
                           />
                         </div>
+
+                        <PistasBaseEditor
+                          pistas={d.pistasBase ?? []}
+                          onChange={(v) => updateDesafio(d.id, "pistasBase", v)}
+                        />
 
                         {d.tipoValidacion === "codigo" && (
                           <div>
@@ -857,7 +870,7 @@ function AdminPanel({ onClose, onNavigate }) {
                 }`}
             >
               <span className="material-symbols-outlined text-[16px]">delete_forever</span>
-              {confirmDelete ? "Tocá de nuevo para eliminar definitivamente" : "Eliminar experiencia"}
+              {confirmDelete ? `Tocá de nuevo: se borrarán también sus ${statsByExp.get(draft.id)?.total ?? 0} participaciones` : "Eliminar experiencia"}
             </button>
           )}
         </div>
@@ -906,6 +919,76 @@ function Slider({ label, value, min, max, step, display, accent, onChange }) {
         className="w-full h-1.5 bg-[#2a273e] rounded-lg cursor-pointer"
         style={{ accentColor: accent }}
       />
+    </div>
+  );
+}
+
+
+/** ADM10 — Pistas base ordenadas: se entregan una por solicitud, en este orden. */
+function PistasBaseEditor({ pistas, onChange }) {
+  const MAX = 5;
+  const set = (i, v) => onChange(pistas.map((p, k) => (k === i ? v : p)));
+  const remove = (i) => onChange(pistas.filter((_, k) => k !== i));
+  const move = (i, dir) => {
+    const j = i + dir;
+    if (j < 0 || j >= pistas.length) return;
+    const next = [...pistas];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[12px] text-[#c9c5d0]">Pistas base (se entregan en este orden)</span>
+        {pistas.length < MAX && (
+          <button
+            type="button"
+            onClick={() => onChange([...pistas, ""])}
+            className="text-[12px] text-[#00eefc] font-semibold flex items-center gap-1 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[16px]">add_circle</span>
+            Agregar pista
+          </button>
+        )}
+      </div>
+
+      {pistas.length === 0 && (
+        <p className="text-[11px] text-[#ffb1c4]">
+          Sin pistas base: si el participante se traba, solo podrá apoyarse en el asistente IA.
+        </p>
+      )}
+
+      {pistas.map((p, i) => (
+        <div key={i} className="flex items-start gap-1.5">
+          <span className="w-6 h-6 mt-2 rounded-full bg-[#35324a] text-[11px] font-bold text-[#c9c5d0] flex items-center justify-center shrink-0">
+            {i + 1}
+          </span>
+          <textarea
+            rows={2}
+            maxLength={300}
+            value={p}
+            aria-label={`Pista base ${i + 1}`}
+            onChange={(e) => set(i, e.target.value)}
+            placeholder={i === 0 ? "Una orientación general" : "Una pista más específica"}
+            className={`${inputBase} py-2 resize-none`}
+          />
+          <div className="flex flex-col shrink-0">
+            <button type="button" aria-label="Subir pista" disabled={i === 0} onClick={() => move(i, -1)}
+              className="w-7 h-6 text-[#c9c5d0] hover:text-[#7df4ff] disabled:opacity-25 flex items-center justify-center cursor-pointer">
+              <span className="material-symbols-outlined text-[18px]">arrow_upward</span>
+            </button>
+            <button type="button" aria-label="Bajar pista" disabled={i === pistas.length - 1} onClick={() => move(i, 1)}
+              className="w-7 h-6 text-[#c9c5d0] hover:text-[#7df4ff] disabled:opacity-25 flex items-center justify-center cursor-pointer">
+              <span className="material-symbols-outlined text-[18px]">arrow_downward</span>
+            </button>
+            <button type="button" aria-label="Quitar pista" onClick={() => remove(i)}
+              className="w-7 h-6 text-[#ffb1c4] hover:text-[#ff027f] flex items-center justify-center cursor-pointer">
+              <span className="material-symbols-outlined text-[18px]">delete</span>
+            </button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

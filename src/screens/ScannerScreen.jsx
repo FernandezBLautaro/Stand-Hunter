@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { QrScanner } from '../components/QrScanner.jsx';
 import { ProgressBar } from '../components/ProgressBar.jsx';
 import { InfoModal } from '../components/InfoModal.jsx';
+import { ChallengeAnswer } from '../components/ChallengeAnswer.jsx';
 import { useParticipation } from '../context/ParticipationContext.jsx';
-import {
-  subscribeElementos, parseScanPayload, normalizeCode, TIPO_ELEMENTO_LABEL,
-} from '../services/elementosService.js';
-import { registerClueFound, subscribeParticipation } from '../services/progressService.js';
+import { useChallenge } from '../context/ChallengeContext.jsx';
+import { parseScanPayload } from '../services/elementosService.js';
 
 const formatTime = (ms) => {
   const total = Math.ceil(ms / 1000);
@@ -15,19 +14,29 @@ const formatTime = (ms) => {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 };
 
+const TIPO_LABEL = { pregunta: 'Pregunta', codigo: 'Código QR', voz: 'Voz' };
+const TIPO_ICON = { pregunta: 'help', codigo: 'qr_code_2', voz: 'mic' };
+
+const feedbackStyle = {
+  ok: 'bg-[#0e0b21] border-[#00eefc]/60 text-[#7df4ff]',
+  info: 'bg-[#1c192f] border-white/20 text-[#e5defe]',
+  error: 'bg-[#3e001a]/95 border-[#ff027f]/60 text-[#ffdad6]',
+};
+const feedbackIcon = { ok: 'check_circle', info: 'info', error: 'error' };
+
 /**
- * ESC01 + ESC02 + ESC03 + ESC09 — Entrega de la experiencia, búsqueda de pistas,
- * escaneo QR, barra de progreso y cuenta regresiva.
- * La experiencia y la participación vienen de ParticipationContext.
+ * Sprint 3 — Pantalla de juego: un desafío a la vez (pregunta, código QR o voz), validado en el
+ * servidor, con pistas base progresivas, barra de progreso y cuenta regresiva (total y por desafío).
+ * La experiencia y la participación vienen de ParticipationContext; los desafíos, de ChallengeContext.
  *
  * @param {{
  *   onBack: () => void,
  *   onConclude?: () => void,
  *   onAbandon?: () => void,
- *   onError?: (err: any) => void,
+ *   onOpenAssistant?: () => void,
  * }} props
  */
-export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
+export const ScannerScreen = ({ onBack, onConclude, onAbandon, onOpenAssistant }) => {
   const {
     selectedExperience: experience,
     active,
@@ -36,23 +45,15 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
     dismissExpired,
     setScannerVisible,
   } = useParticipation();
-  const participationId = active?.id ?? null;
+  const {
+    desafios, desafioActual, indiceActual, completo, resueltos, total, pistasEntregadas, pistasTotal,
+    restanteDesafioMs, desafioExcedido, busy, hintBusy, bloqueado, submit, requestHint,
+  } = useChallenge();
 
-  const [elementos, setElementos] = useState([]);
-  const [found, setFound] = useState(() => new Set());
   const [scanning, setScanning] = useState(false);
-  const [manualCode, setManualCode] = useState('');
   const [feedback, setFeedback] = useState(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const feedbackTimer = useRef(null);
-  const foundRef = useRef(found);
-  const elementosRef = useRef(elementos);
-  const onErrorRef = useRef(onError);
-  const handleCodeRef = useRef(null);
-
-  useEffect(() => { foundRef.current = found; }, [found]);
-  useEffect(() => { elementosRef.current = elementos; }, [elementos]);
-  useEffect(() => { onErrorRef.current = onError; }, [onError]);
 
   // Le avisa al contexto que el escáner está en pantalla: solo así se muestra el modal al expirar.
   useEffect(() => {
@@ -60,116 +61,36 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
     return () => setScannerVisible(false);
   }, [setScannerVisible]);
 
-  const experienciaId = experience?.id ?? null;
-
-  // Elementos físicos de la experiencia (ADM14).
-  useEffect(
-    () => subscribeElementos(experienciaId, setElementos, (err) => onErrorRef.current?.(err)),
-    [experienciaId]
-  );
-
-  // Progreso guardado: al volver a «Iniciar desafío» (o recargar) se recuperan las pistas ya encontradas.
-  useEffect(
-    () =>
-      subscribeParticipation(
-        participationId,
-        (p) => {
-          const saved = (p?.elementosEncontrados ?? []).map(normalizeCode);
-          if (saved.length) setFound((prev) => new Set([...prev, ...saved]));
-        },
-        (err) => onErrorRef.current?.(err)
-      ),
-    [participationId]
-  );
-
   useEffect(() => () => clearTimeout(feedbackTimer.current), []);
 
-  // Etapas = desafíos con elemento físico asociado (ADM16). Si el admin todavía no vinculó
-  // ninguno, se muestran los elementos sueltos para que la experiencia igual sea jugable.
-  const etapas = useMemo(() => {
-    const vinculadas = (experience?.desafios ?? [])
-      .filter((d) => d.elementoFisicoId)
-      .map((d) => {
-        const codigo = normalizeCode(d.elementoFisicoId);
-        return {
-          key: d.id,
-          codigo,
-          titulo: d.titulo,
-          descripcion: d.descripcion,
-          tipo: 'qr',
-        };
-      });
-    if (vinculadas.length) return vinculadas;
-    return elementos.map((e) => ({
-      key: e.id,
-      codigo: e.codigoIdentificador,
-      titulo: e.nombre,
-      descripcion: e.ubicacion,
-      tipo: 'qr',
-    }));
-  }, [experience, elementos]);
-
-  // Un desafío a la vez: el actual es el primero (en orden) que todavía no se resolvió.
-  const indiceActual = etapas.findIndex((e) => !found.has(e.codigo));
-  const completo = etapas.length > 0 && indiceActual === -1;
-  const etapaActual = completo ? null : etapas[indiceActual] ?? null;
-  const encontradas = completo ? etapas.length : Math.max(0, indiceActual);
-  const resueltas = etapas.slice(0, encontradas);
   const tiempoAgotado = !active && !!expiredInfo;
 
-  const tipoActual = 'qr';
-
   const showFeedback = (type, text) => {
-    setFeedback({ type, text });
+    setFeedback({ type: type === 'warn' ? 'info' : type, text });
     clearTimeout(feedbackTimer.current);
     feedbackTimer.current = setTimeout(() => setFeedback(null), 3500);
   };
 
-  /** Procesa un código leído (QR o manual). */
-  const handleCode = async (raw) => {
-    if (tiempoAgotado) return null;
-    const codigo = parseScanPayload(raw);
-    if (!codigo) return null;
-    if (!etapaActual) return null; // ya completó todo o no hay etapas
-
-    // Código de un desafío ya resuelto
-    if (foundRef.current.has(codigo)) {
-      const previa = etapas.find((e) => e.codigo === codigo);
-      const text = `Ya resolviste «${previa?.titulo ?? 'esta pista'}».`;
-      showFeedback('info', text);
-      return { type: 'info', text };
-    }
-
-    // Cualquier código que no sea el del desafío actual se rechaza sin revelar a qué corresponde.
-    if (codigo !== etapaActual.codigo) {
-      const text = 'Código incorrecto. No corresponde al desafío actual.';
-      showFeedback('error', text);
-      return { type: 'error', text };
-    }
-
-    setScanning(false);
-    const siguiente = new Set(foundRef.current).add(codigo);
-    foundRef.current = siguiente; // síncrono: evita doble lectura del mismo código
-    setFound(siguiente);
-    const text = `¡Correcto! ${etapaActual.titulo}`;
-    showFeedback('ok', text);
-    if (participationId) {
-      // sin participación registrada: el progreso queda solo en pantalla
-      try {
-        await registerClueFound(participationId, codigo);
-      } catch (err) {
-        onErrorRef.current?.(err);
-      }
-    }
-    return { type: 'ok', text: etapaActual.titulo };
+  /** ESC04 / ESC07 — envía la respuesta y muestra el resultado de inmediato. */
+  const handleAnswer = async (respuesta, via) => {
+    if (bloqueado) return null;
+    const r = await submit(respuesta, via);
+    if (r) showFeedback(r.type, r.text);
+    return r;
   };
-  handleCodeRef.current = handleCode;
 
-  const submitManual = (e) => {
-    e.preventDefault();
-    if (!manualCode.trim()) return;
-    handleCode(manualCode);
-    setManualCode('');
+  /** ESC03 — un QR leído se valida como respuesta del desafío activo (solo tipo «código»). */
+  const handleQrDetect = async (raw) => {
+    const codigo = parseScanPayload(raw);
+    if (!codigo) return;
+    const r = await handleAnswer(codigo, 'qr');
+    if (r) setScanning(false); // se cierra la cámara para que se vea el resultado
+  };
+
+  const handleHint = async () => {
+    const r = await requestHint();
+    if (r.type === 'ok') showFeedback('ok', `Pista ${r.indice} de ${r.total} desbloqueada.`);
+    else showFeedback(r.type, r.text);
   };
 
   // Cierre del modal de tiempo agotado (botón, X, fondo o Escape): limpia y vuelve a Experiencias.
@@ -184,7 +105,7 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
       isOpen={!!expiredInfo}
       type="info"
       title="¡Se acabó el tiempo!"
-      message={`El tiempo de «${expiredInfo?.experienciaNombre || 'la experiencia'}» terminó y la experiencia se marcó como concluida. Podés iniciar otra o volver a intentarlo.`}
+      message={`El tiempo de «${expiredInfo?.experienciaNombre || 'la experiencia'}» terminó y la experiencia se marcó como expirada. Podés iniciar otra o volver a intentarlo.`}
       primaryLabel="Volver a Experiencias"
       onPrimary={handleExpiredClose}
       onClose={handleExpiredClose}
@@ -194,10 +115,9 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
 
   // Con participación en curso se pide confirmación; sin ella se vuelve directo.
   const handleBackClick = () => {
-    if (participationId) setConfirmLeave(true);
+    if (active) setConfirmLeave(true);
     else onBack();
   };
-
   const handleConfirmAbandon = () => {
     setConfirmLeave(false);
     if (onAbandon) onAbandon();
@@ -212,7 +132,7 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
         </div>
         <h2 className="font-headline-md text-[20px] font-bold text-[#e5defe] mb-1">Todavía no elegiste una experiencia</h2>
         <p className="text-[13px] text-[#c9c5d0] max-w-xs mb-6">
-          Elegí una de la lista y tocá «Iniciar desafío» para activar el escáner.
+          Elegí una de la lista y tocá «Iniciar desafío» para comenzar.
         </p>
         <button
           type="button"
@@ -226,18 +146,15 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
     );
   }
 
-  const feedbackStyle = {
-    ok: 'bg-[#0e0b21] border-[#00eefc]/60 text-[#7df4ff]',
-    info: 'bg-[#1c192f] border-white/20 text-[#e5defe]',
-    error: 'bg-[#3e001a]/95 border-[#ff027f]/60 text-[#ffdad6]',
-  };
-  const feedbackIcon = { ok: 'check_circle', info: 'info', error: 'error' };
-
   const urgente = remainingMs !== null && remainingMs < 2 * 60 * 1000;
+  const entregadas = pistasEntregadas;
+  const cantBase = pistasTotal;
+  const sinPistasBase = cantBase === 0;
+  const pistasAgotadas = typeof cantBase === 'number' && cantBase > 0 && entregadas.length >= cantBase;
 
   return (
-    <div className="flex flex-col w-full max-w-md mx-auto px-4 pt-3 pb-24 gap-4">
-      {/* ESC01 — Experiencia inicial + cuenta regresiva */}
+    <div className="flex flex-col w-full max-w-md mx-auto px-4 pt-3 pb-40 gap-4">
+      {/* ESC01 — Experiencia + cuenta regresiva total (ESC11) */}
       <section className="rounded-2xl bg-[#1c192f] border border-[#00eefc]/25 p-4 flex flex-col gap-2">
         <div className="flex items-start justify-between gap-3">
           <h1 className="font-headline-md text-[20px] font-bold text-[#e5defe] leading-tight">{experience.nombre}</h1>
@@ -245,10 +162,11 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
             <div
               role="timer"
               aria-label="Tiempo restante"
-              className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-label-code text-[13px] font-bold ${urgente
+              className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-label-code text-[13px] font-bold ${
+                urgente
                   ? 'bg-[#3e001a] border-[#ff027f]/60 text-[#ff027f] animate-pulse shadow-[0_0_10px_rgba(255,2,127,0.4)]'
                   : 'bg-[#0e0b21] border-[#00eefc]/30 text-[#7df4ff]'
-                }`}
+              }`}
             >
               <span className="material-symbols-outlined text-[16px]">timer</span>
               {formatTime(remainingMs)}
@@ -274,15 +192,12 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
             </span>
           )}
         </div>
-        <p className="text-[12px] text-[#7df4ff] pt-1">
-          Recorré el stand, encontrá los elementos y escaneá su código para desbloquear cada pista.
-        </p>
       </section>
 
       {/* ESC09 — Progreso */}
-      <ProgressBar value={encontradas} total={etapas.length} />
+      <ProgressBar value={resueltos} total={total} label="Desafíos resueltos" />
 
-      {/* Feedback del último escaneo */}
+      {/* ESC07 — Feedback inmediato */}
       <div role="status" aria-live="polite" className="min-h-[44px]">
         {feedback && (
           <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-[13px] ${feedbackStyle[feedback.type]}`}>
@@ -292,57 +207,98 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
         )}
       </div>
 
-      {/* ESC03 — Acciones de escaneo */}
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => setScanning(true)}
-          disabled={tiempoAgotado}
-          className="flex-1 h-14 rounded-xl bg-[#ff027f] hover:bg-[#ff027f]/90 text-white font-headline-sm text-[15px] font-bold flex items-center justify-center gap-2 shadow-[0_0_24px_rgba(255,2,127,0.55)] active:scale-[0.98] transition-transform cursor-pointer disabled:opacity-40"
-        >
-          <span className="material-symbols-outlined text-[22px]">qr_code_scanner</span>
-          Escanear QR
-        </button>
-      </div>
-
-      {/* ESC02 — Desafío actual (uno a la vez) */}
-      <section className="flex flex-col gap-2">
-        {etapas.length === 0 && (
+      {/* ESC05 — Un desafío a la vez, en orden secuencial */}
+      <section className="flex flex-col gap-3">
+        {desafios.length === 0 && (
           <div className="p-4 rounded-xl bg-[#1c192f] border border-white/10 text-[13px] text-[#c9c5d0]">
-            El staff todavía no registró elementos para esta experiencia. Consultá en el stand.
+            El staff todavía no cargó desafíos para esta experiencia. Consultá en el stand.
           </div>
         )}
 
-        {resueltas.length > 0 && (
-          <div className="flex flex-col gap-1">
-            {resueltas.map((r, i) => (
-              <div key={r.key} className="flex items-center gap-2 text-[12px] text-[#7df4ff]">
-                <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                <span className="truncate">{i + 1}. {r.titulo}</span>
-              </div>
-            ))}
+        {desafios.slice(0, Math.max(0, indiceActual === -1 ? desafios.length : indiceActual)).map((r, i) => (
+          <div key={r.id} className="flex items-center gap-2 text-[12px] text-[#7df4ff]">
+            <span className="material-symbols-outlined text-[16px]">check_circle</span>
+            <span className="truncate">{i + 1}. {r.titulo}</span>
           </div>
-        )}
+        ))}
 
-        {etapaActual && (
-          <div className="p-4 rounded-xl bg-[#1c192f] border border-[#00eefc]/50 shadow-[0_0_16px_rgba(0,238,252,0.2)] flex items-start gap-3">
-            <span className="w-8 h-8 rounded-full bg-[#00eefc] text-[#002022] flex items-center justify-center text-[13px] font-bold shrink-0">
-              {indiceActual + 1}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-label-code text-[11px] text-[#00eefc] uppercase tracking-wider">
-                  Desafío {indiceActual + 1} de {etapas.length}
+        {desafioActual && (
+          <div className="p-4 rounded-xl bg-[#1c192f] border border-[#00eefc]/50 shadow-[0_0_16px_rgba(0,238,252,0.2)] flex flex-col gap-3">
+            <div className="flex items-start gap-3">
+              <span className="w-8 h-8 rounded-full bg-[#00eefc] text-[#002022] flex items-center justify-center text-[13px] font-bold shrink-0">
+                {indiceActual + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-label-code text-[11px] text-[#00eefc] uppercase tracking-wider">
+                    Desafío {indiceActual + 1} de {total}
+                  </p>
+                  <span className="shrink-0 px-2 py-0.5 rounded-full bg-[#0e0b21] border border-[#00eefc]/30 text-[10px] text-[#00eefc] flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[12px]">{TIPO_ICON[desafioActual.tipoValidacion]}</span>
+                    {TIPO_LABEL[desafioActual.tipoValidacion]}
+                  </span>
+                </div>
+                <p className="text-[15px] font-semibold text-[#e5defe]">{desafioActual.titulo}</p>
+                <p className="text-[13px] text-[#c9c5d0] leading-snug mt-0.5">
+                  {desafioActual.descripcion || 'Resolvé el desafío para avanzar al siguiente.'}
                 </p>
-                <span className="shrink-0 px-2 py-0.5 rounded-full bg-[#0e0b21] border border-[#00eefc]/30 text-[10px] text-[#00eefc] flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[12px]">qr_code_2</span>
-                  {TIPO_ELEMENTO_LABEL[tipoActual] ?? tipoActual}
-                </span>
               </div>
-              <p className="text-[15px] font-semibold text-[#e5defe]">{etapaActual.titulo}</p>
-              <p className="text-[13px] text-[#c9c5d0] leading-snug mt-0.5">
-                {etapaActual.descripcion || 'Buscá el elemento correspondiente y escaneá su código.'}
+            </div>
+
+            {restanteDesafioMs !== null && (
+              <p className={`text-[12px] flex items-center gap-1 ${desafioExcedido ? 'text-[#ffb1c4]' : 'text-[#c9c5d0]'}`}>
+                <span className="material-symbols-outlined text-[14px]">hourglass_top</span>
+                {desafioExcedido
+                  ? 'Superaste el tiempo previsto para este desafío. Podés seguir mientras quede tiempo total.'
+                  : `Tiempo previsto para este desafío: ${formatTime(restanteDesafioMs)}`}
               </p>
+            )}
+
+            {entregadas.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                {entregadas.map((p, i) => (
+                  <div key={i} className="px-3 py-2 rounded-lg bg-[#0e0b21] border border-[#ff027f]/30 text-[13px] text-[#e5defe] flex gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-[#ff027f] mt-0.5">lightbulb</span>
+                    <span><strong className="text-[#ffb1c4]">Pista {i + 1}:</strong> {p}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <ChallengeAnswer
+              key={desafioActual.id}
+              desafio={desafioActual}
+              disabled={bloqueado}
+              busy={busy}
+              onSubmit={handleAnswer}
+              onScan={() => setScanning(true)}
+            />
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleHint}
+                disabled={bloqueado || hintBusy || sinPistasBase || pistasAgotadas}
+                className="flex-1 h-11 rounded-lg border border-[#ff027f]/40 text-[#ffb1c4] text-[13px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined text-[18px]">lightbulb</span>
+                {sinPistasBase
+                  ? 'Sin pistas base'
+                  : pistasAgotadas
+                  ? 'Pistas agotadas'
+                  : `Pedir pista${typeof cantBase === 'number' ? ` (${entregadas.length}/${cantBase})` : ''}`}
+              </button>
+              {onOpenAssistant && (
+                <button
+                  type="button"
+                  onClick={onOpenAssistant}
+                  disabled={bloqueado}
+                  className="flex-1 h-11 rounded-lg bg-[#2a273e] text-[#e5defe] text-[13px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+                >
+                  <span className="material-symbols-outlined text-[18px]">smart_toy</span>
+                  Asistente IA
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -350,30 +306,10 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
         {completo && (
           <div className="p-4 rounded-xl bg-[#0e0b21] border border-[#00eefc]/40 text-[13px] text-[#7df4ff] flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px]">military_tech</span>
-            ¡Resolviste todos los desafíos! Ya podés concluir la experiencia.
+            ¡Experiencia completada! Ya podés concluirla.
           </div>
         )}
       </section>
-
-      {/* Ingreso manual: respaldo si la cámara falla o el código está dañado */}
-      <form onSubmit={submitManual} className="flex gap-2">
-        <input
-          type="text"
-          value={manualCode}
-          onChange={(e) => setManualCode(e.target.value)}
-          placeholder="¿No escanea? Escribí el código"
-          aria-label="Código del elemento"
-          disabled={tiempoAgotado}
-          className="flex-1 h-11 bg-[#0e0b21] border border-white/10 rounded-lg px-3 text-[13px] text-[#e5defe] placeholder-[#c9c5d0]/50 focus:outline-none focus:border-[#00eefc] disabled:opacity-40"
-        />
-        <button
-          type="submit"
-          disabled={tiempoAgotado}
-          className="px-4 h-11 rounded-lg bg-[#2a273e] text-[#e5defe] text-[13px] font-semibold cursor-pointer disabled:opacity-40"
-        >
-          Validar
-        </button>
-      </form>
 
       <div className="flex flex-col gap-2 pt-2">
         {onConclude && active && (
@@ -395,7 +331,9 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onError }) => {
         </button>
       </div>
 
-      {scanning && !tiempoAgotado && <QrScanner onDetect={handleCode} onClose={() => setScanning(false)} />}
+      {scanning && !bloqueado && desafioActual?.tipoValidacion === 'codigo' && (
+        <QrScanner onDetect={handleQrDetect} onClose={() => setScanning(false)} />
+      )}
 
       {expiredModal}
 

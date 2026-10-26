@@ -1,17 +1,23 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+//Services
 import { subscribeExperiences, describeFirestoreError } from './services/firestoreService.js';
 import { subscribeSession, isAdminProfile } from './services/authService.js';
+//Context
 import { ParticipationProvider, useParticipation } from './context/ParticipationContext.jsx';
-import { Header } from './components/Header.jsx';
-import { BottomNavigation } from './components/BottomNavigation.jsx';
+import { ChallengeProvider } from './context/ChallengeContext.jsx';
+//Screens
 import { SplashScreen } from './screens/SplashScreen.jsx';
 import { OnboardingScreen } from './screens/OnboardingScreen.jsx';
-import { RegistrationModal } from './components/RegistrationModal.jsx';
 import { ExperiencesScreen } from './screens/ExperiencesScreen.jsx';
-import { ErrorBanner } from './components/ErrorBanner.jsx';
 import { ComingSoonScreen } from './screens/ComingSoonScreen.jsx';
+import { ChatbotScreen } from './screens/ChatbotScreen.jsx';
 import { ScannerScreen } from './screens/ScannerScreen.jsx';
 import AdminExperiencesScreen from './screens/admin/AdminExperiencesScreen.jsx';
+//Components
+import { Header } from './components/Header.jsx';
+import { BottomNavigation } from './components/BottomNavigation.jsx';
+import { RegistrationModal } from './components/RegistrationModal.jsx';
+import { ErrorBanner } from './components/ErrorBanner.jsx';
 
 const toApiError = (err) => ({
   message: describeFirestoreError(err),
@@ -83,6 +89,7 @@ export default function App() {
       experiences={experiences}
       onError={handleServiceError}
     >
+      <ChallengeProvider onError={handleServiceError}>
       <AppShell
         session={session}
         isAdmin={isAdmin}
@@ -95,6 +102,7 @@ export default function App() {
         onRetry={handleRetry}
         onServiceError={handleServiceError}
       />
+      </ChallengeProvider>
     </ParticipationProvider>
   );
 }
@@ -200,15 +208,15 @@ function AppShell({
                 onBack={() => setActiveTab('experiencias')}
                 onConclude={active ? handleConcludeExperience : undefined}
                 onAbandon={active ? handleAbandonExperience : undefined}
+                onOpenAssistant={() => setActiveTab('asistente-ia')}
                 onError={onServiceError}
               />
             )}
 
             {activeTab === 'asistente-ia' && (
-              <ComingSoonScreen
-                title="Chatbot de Asistencia IA"
-                sprintLabel="Sprint 3"
+              <ChatbotScreen
                 onBack={() => setActiveTab('experiencias')}
+                onGoToScanner={() => setActiveTab('escaner-ar')}
               />
             )}
 

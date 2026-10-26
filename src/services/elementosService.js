@@ -1,19 +1,23 @@
 // ADM14 / ADM15 / ADM16 — Elementos físicos del stand (entidad ELEMENTO_FISICO).
 //
 //   id                   string  (Firestore)
-//   experienciaId        string  (FK a experiences)
 //   nombre               string  máx 80
 //   codigoIdentificador  string  ÚNICO en todo el inventario, en MAYÚSCULAS (lo que codifica el QR)
 //   tipo                 'qr'
 //   ubicacion            string  pista para el staff / texto de ayuda
 //   creadoEl             timestamp
 //
-// El vínculo con la pista (ADM16) se guarda del lado del desafío:
+// El elemento es GLOBAL (ya no pertenece a una sola experiencia). El vínculo con las pistas (ADM16)
+// se guarda del lado del desafío y es N:1, así que un mismo elemento puede desbloquear varios
+// desafíos, incluso de experiencias distintas:
 //   experiences/{id}.desafios[i].elementoFisicoId === codigoIdentificador
+//
+// Compatibilidad: documentos viejos pueden traer `experienciaId`; se ignora al leer y se elimina
+// la próxima vez que se guarde el elemento.
 
 import {
   collection, doc, addDoc, updateDoc, deleteDoc, getDocs,
-  onSnapshot, query, where, serverTimestamp,
+  onSnapshot, query, where, serverTimestamp, deleteField,
 } from "firebase/firestore";
 import { db } from "../firebase";
 
@@ -72,9 +76,7 @@ function sanitize(data) {
   if (!nombre) throw new Error("El nombre del elemento es obligatorio.");
   const codigo = normalizeCode(data.codigoIdentificador).replace(/\s+/g, "-").slice(0, 60);
   if (!codigo) throw new Error("El código identificador es obligatorio.");
-  if (!data.experienciaId) throw new Error("Falta la experiencia a la que pertenece el elemento.");
   return {
-    experienciaId: String(data.experienciaId),
     nombre,
     codigoIdentificador: codigo,
     tipo: normalizeTipo(data.tipo),
@@ -83,9 +85,9 @@ function sanitize(data) {
 }
 
 /**
- * ADM15 — Busca otro elemento que ya use ese código (en cualquier experiencia).
+ * ADM15 — Busca otro elemento que ya use ese código (el código es único en todo el inventario).
  * Una sola igualdad → no requiere índice compuesto.
- * @returns {Promise<{id: string, nombre: string, experienciaId: string} | null>}
+ * @returns {Promise<{id: string, nombre: string} | null>}
  */
 export async function findCodeConflict(codigo, ignoreId = null) {
   if (!codigo) return null;
@@ -106,14 +108,10 @@ async function assertUniqueCode(codigo, ignoreId = null) {
 
 const millis = (ts) => ts?.toMillis?.() ?? 0;
 
-/** Suscripción en tiempo real a los elementos de UNA experiencia. Devuelve el unsubscribe. */
-export function subscribeElementos(experienciaId, onData, onError) {
-  if (!experienciaId) {
-    onData([]);
-    return () => {};
-  }
+/** Suscripción en tiempo real al inventario completo (los elementos son globales). */
+export function subscribeTodosElementos(onData, onError) {
   return onSnapshot(
-    query(ref(), where("experienciaId", "==", experienciaId)),
+    ref(),
     (snap) => {
       const list = snap.docs.map((d) => {
         const data = d.data({ serverTimestamps: "estimate" });
@@ -140,7 +138,8 @@ export async function createElemento(data) {
 export async function updateElemento(id, data) {
   const clean = sanitize(data);
   await assertUniqueCode(clean.codigoIdentificador, id);
-  await updateDoc(doc(db, COLLECTION, id), clean);
+  // deleteField() limpia el experienciaId heredado del modelo anterior (1 elemento : 1 experiencia).
+  await updateDoc(doc(db, COLLECTION, id), { ...clean, experienciaId: deleteField() });
 }
 
 export async function deleteElemento(id) {

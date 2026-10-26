@@ -1,4 +1,4 @@
-// vision 0.2
+// version 0.3
 rules_version = '2';
 
 service cloud.firestore {
@@ -8,11 +8,58 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Admin = el documento usuarios/{uid} tiene tipo 'administrador'.
     function isAdmin() {
       return isAuthenticated()
-        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
         && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.tipo == 'administrador';
+    }
+
+    function partPath(id_participacion) {
+      return /databases/$(database)/documents/participaciones/$(id_participacion);
+    }
+
+    function isOwner(id_participacion) {
+      return isAuthenticated() && get(partPath(id_participacion)).data.usuarioId == request.auth.uid;
+    }
+
+    // La participación sigue en curso Y dentro de tiempo. Sin duración o sin inicio => NO válida.
+    function enCurso(id_participacion) {
+      let p = get(partPath(id_participacion)).data;
+      return p.estado == 'en_curso'
+        && p.duracionMin != null
+        && p.momentoInicio != null
+        && request.time.toMillis() <= p.momentoInicio.toMillis() + p.duracionMin * 60000 + 2000;
+    }
+    
+    function secretoPath(id_participacion, id_desafio) {
+      let exp = get(partPath(id_participacion)).data.experienciaId;
+      return /databases/$(database)/documents/experiences/$(exp)/secretos/$(id_desafio);
+    }
+
+    function progresoPath(id_participacion, id_desafio) {
+      return /databases/$(database)/documents/participaciones/$(id_participacion)/progreso/$(id_desafio);
+    }
+
+    function previoResuelto(id_participacion, id_desafio) {
+      let prev = get(secretoPath(id_participacion, id_desafio)).data.get('previoId', '');
+      return prev == '' || get(progresoPath(id_participacion, prev)).data.estado == 'resuelto';
+    }
+
+    function respuestaValida(id_participacion, id_desafio, norm) {
+      let s = get(secretoPath(id_participacion, id_desafio)).data;
+      return norm in s.get('criteriosNorm', [])
+        || (s.get('codigoElementoNorm', '') != '' && norm == s.codigoElementoNorm);
+    }
+
+    function antes() {
+      return resource == null ? 0 : resource.data.get('pistasUtilizadas', 0);
+    }
+
+    function noResuelto() {
+      return resource == null || resource.data.estado != 'resuelto';
+    }
+
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
 
     match /usuarios/{uid} {
@@ -21,43 +68,117 @@ service cloud.firestore {
       // Solo puede crear SU documento y siempre como jugador.
       allow create: if isAuthenticated()
         && request.auth.uid == uid
-        && request.resource.data.tipo == 'jugador';
+        && request.resource.data.keys().hasOnly(['nombre','email','tipo','fechaRegistro'])
+        && request.resource.data.tipo == 'jugador'
+        && request.resource.data.nombre is string
+        && request.resource.data.nombre.size() > 0
+        && request.resource.data.nombre.size() <= 40
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.fechaRegistro == request.time;
 
       // El dueño edita su perfil pero no puede cambiar su tipo.
       allow update: if isAdmin()
         || (isAuthenticated() && request.auth.uid == uid
-            && request.resource.data.tipo == resource.data.tipo);
+            && onlyChanges(['nombre'])
+            && request.resource.data.nombre is string
+            && request.resource.data.nombre.size() > 0
+            && request.resource.data.nombre.size() <= 40);
 
       allow delete: if isAdmin();
     }
 
     match /experiences/{id_experiencia} {
       allow read: if resource.data.activa == true || isAdmin();
-      allow create, update, delete: if isAdmin();
+      allow write: if isAdmin();
 
+      // Desafíos como subcolección.
       match /desafios/{id_desafio} {
-        allow read: if isAuthenticated();
+        allow read: if isAdmin()
+          || (isAuthenticated()
+              && get(/databases/$(database)/documents/experiences/$(id_experiencia)).data.activa == true);
         allow write: if isAdmin();
+      }
 
-        match /secreto/respuesta {
-          allow read, write: if isAdmin();
-        }
+      // Respuestas correctas: SOLO admin. Las reglas sí las leen para validar.
+      match /secretos/{id_desafio} {
+        allow read, write: if isAdmin();
       }
     }
 
     match /participaciones/{id_participacion} {
-      // El jugador necesita leer la suya (restaurar progreso); el admin lee todas.
       allow read: if isAdmin()
         || (isAuthenticated() && resource.data.usuarioId == request.auth.uid);
 
       allow create: if isAuthenticated()
+        && request.resource.data.keys().hasOnly([
+             'usuarioId','usuarioNickname','experienciaId','experienciaNombre','estado',
+             'momentoInicio','momentoFin','tiempoTotalMs','puntajeFinal','duracionMin'])
         && request.resource.data.usuarioId == request.auth.uid
-        && request.resource.data.estado == 'en_curso';
+        && request.resource.data.estado == 'en_curso'
+        && request.resource.data.momentoInicio == request.time
+        && request.resource.data.momentoFin == null
+        && request.resource.data.puntajeFinal == null
+        && get(/databases/$(database)/documents/experiences/$(request.resource.data.experienciaId)).data.activa == true
+        && request.resource.data.duracionMin ==
+           get(/databases/$(database)/documents/experiences/$(request.resource.data.experienciaId)).data.duracion;
 
+      // El jugador solo puede cerrar/avanzar SU participación en curso.
+      // No puede tocar duracionMin, momentoInicio, experienciaId ni reabrirla.
       allow update: if isAdmin()
         || (isAuthenticated()
             && resource.data.usuarioId == request.auth.uid
-            && request.resource.data.usuarioId == resource.data.usuarioId);
+            && resource.data.estado == 'en_curso'
+            && onlyChanges(['estado','momentoFin','tiempoTotalMs','puntajeFinal',
+                            'elementosEncontrados','ultimaPistaEl'])
+            && request.resource.data.estado in ['en_curso','completada','abandonada','expirada']
+            && (request.resource.data.estado == 'en_curso'
+                || request.resource.data.momentoFin == request.time)
+            && (request.resource.data.puntajeFinal == null
+                || (request.resource.data.puntajeFinal is number
+                    && request.resource.data.puntajeFinal >= 0
+                    && request.resource.data.puntajeFinal <=
+                       get(/databases/$(database)/documents/experiences/$(resource.data.experienciaId)).data.puntos)));
+
+      allow delete: if isAdmin();
+
+      // PROGRESO: el participante lo lee y lo escribe solo por dos vías válidas.
+      match /progreso/{id_desafio} {
+        allow read: if isOwner(id_participacion) || isAdmin();
+
+        allow create, update: if isOwner(id_participacion) && enCurso(id_participacion) && noResuelto()
+          && request.resource.data.keys().hasOnly(
+               ['desafioId','orden','estado','respuestaNorm','comandosVoz','pistasUtilizadas','fechaResolucion'])
+          && request.resource.data.desafioId == id_desafio
+          && exists(secretoPath(id_participacion, id_desafio))
+          && previoResuelto(id_participacion, id_desafio)
+          && (
+            // (a) pedir la siguiente pista base: +1 exacto
+            ( request.resource.data.estado == 'pendiente'
+              && request.resource.data.pistasUtilizadas == antes() + 1
+              && antes() < 5 )
+            ||
+            // (b) resolver: la respuesta normalizada debe estar en los criterios secretos
+            ( request.resource.data.estado == 'resuelto'
+              && request.resource.data.fechaResolucion == request.time
+              && request.resource.data.get('pistasUtilizadas', 0) == antes()
+              && request.resource.data.respuestaNorm is string
+              && respuestaValida(id_participacion, id_desafio, request.resource.data.respuestaNorm) )
+          );
+      }
+
+      // Consultas al chatbot (insumo para penalización de Sprint 4 y análisis DAT04).
+      match /pistas_chat/{id} {
+        allow create: if isOwner(id_participacion) && enCurso(id_participacion)
+          && request.resource.data.keys().hasOnly(['usuarioId','desafioId','pregunta','origen','creadoEl'])
+          && request.resource.data.usuarioId == request.auth.uid
+          && request.resource.data.desafioId is string
+          && request.resource.data.pregunta is string
+          && request.resource.data.pregunta.size() <= 300
+          && request.resource.data.get('origen', '') is string
+          && request.resource.data.get('origen', '').size() <= 30
+          && request.resource.data.creadoEl == request.time;
+        allow read: if isAdmin();
+      }
     }
 
     match /elementos_fisicos/{id} {
