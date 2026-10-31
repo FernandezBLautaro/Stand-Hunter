@@ -7,9 +7,8 @@
 // Debe montarse DENTRO de <ParticipationProvider>.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useParticipation } from './ParticipationContext.jsx';
-import {
-  subscribeProgreso, validateAnswer, requestBaseHint, describeProgressError,
-} from '../services/challengeService.js';
+import { subscribeProgreso, subscribeConsultas, validateAnswer, requestBaseHint, describeProgressError } from '../services/challengeService.js';
+import { MULTIPLICADOR_DIFICULTAD, BONUS_TIEMPO } from '../services/firestoreService.js';
 
 const ChallengeContext = createContext(null);
 
@@ -23,6 +22,8 @@ export function ChallengeProvider({ onError, children }) {
   const [progreso, setProgreso] = useState(() => new Map());
   const [local, setLocal] = useState(() => new Map()); // resueltos confirmados por el servidor, aún sin snapshot
   const [loadingProgreso, setLoadingProgreso] = useState(false);
+  const [consultas, setConsultas] = useState(() => new Map()); // desafioId -> consultas al chatbot
+  const [loadedFor, setLoadedFor] = useState(null); // participación cuyo progreso ya llegó del servidor
   const [busy, setBusy] = useState(false);
   const [hintBusy, setHintBusy] = useState(false);
   const busyRef = useRef(false);
@@ -42,6 +43,7 @@ export function ChallengeProvider({ onError, children }) {
       participationId,
       (map) => {
         setProgreso(map);
+        setLoadedFor(participationId);
         setLoadingProgreso(false);
       },
       (err) => {
@@ -51,7 +53,30 @@ export function ChallengeProvider({ onError, children }) {
     );
   }, [participationId]);
 
+  useEffect(() => {
+    setConsultas(new Map());
+    return subscribeConsultas(participationId, setConsultas, (err) => onErrorRef.current?.(err));
+  }, [participationId]);
+
   const desafios = useMemo(() => experience?.desafios ?? [], [experience]);
+
+  // GAM01 / ADM11 — puntos de cada desafío resuelto menos penalizacionPista por pista base y por consulta al chatbot (mín. 0).
+  const startedAtMs = active?.startedAtMs ?? 0;
+  const puntaje = useMemo(() => {
+    let prevMs = startedAtMs;
+    const total = desafios.reduce((sum, d) => {
+      const p = progreso.get(d.id);
+      if (p?.estado !== 'resuelto') return sum;
+      const inicio = Math.max(startedAtMs, prevMs);
+      prevMs = p.resueltoMs ?? prevMs;
+      const neto = Math.max(0, d.puntosOtorgados - d.penalizacionPista * (p.pistasUtilizadas + (consultas.get(d.id) ?? 0)));
+      const enTiempo = p.resueltoMs != null && p.resueltoMs - inicio <= d.tiempoMaximo * 1000;
+      return sum + neto * (enTiempo ? 1 + BONUS_TIEMPO : 1);
+    }, 0);
+    return Math.round(total * (MULTIPLICADOR_DIFICULTAD[experience?.dificultad] ?? 1));
+  }, [desafios, progreso, consultas, experience, startedAtMs]);
+  
+  const finalizado = desafios.length > 0 && desafios.every((d) => progreso.get(d.id)?.estado === 'resuelto');
 
   // desafioId -> momento de resolución (ms). El avance es monótono, por eso es seguro unir ambas fuentes.
   const resueltoMs = useMemo(() => {
@@ -176,6 +201,7 @@ export function ChallengeProvider({ onError, children }) {
       desafioActual,
       indiceActual,
       completo,
+      puntaje,
       resueltos,
       total: desafios.length,
       progresoActual,
@@ -191,7 +217,7 @@ export function ChallengeProvider({ onError, children }) {
       requestHint,
     }),
     [
-      desafios, desafioActual, indiceActual, completo, resueltos, progresoActual, pistasEntregadas, pistasTotal, restanteDesafioMs,
+      desafios, desafioActual, indiceActual, completo, puntaje, resueltos, progresoActual, pistasEntregadas, pistasTotal, restanteDesafioMs,
       desafioExcedido, loadingProgreso, busy, hintBusy, active, submit, requestHint,
     ]
   );

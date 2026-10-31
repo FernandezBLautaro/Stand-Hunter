@@ -1,5 +1,5 @@
 // DAT01/DAT02 — Registro de participaciones.
-import { collection, doc, addDoc, updateDoc, onSnapshot, serverTimestamp, getDocs, query, where, writeBatch } from "firebase/firestore";
+import { collection, doc, addDoc, updateDoc, onSnapshot, serverTimestamp, getDocs, query, where, writeBatch, increment } from "firebase/firestore";
 import { db } from "../firebase";
 
 const COLLECTION = "participaciones";
@@ -70,18 +70,31 @@ export async function findActiveParticipation(usuarioId, experienciaId = null) {
  * DAT02 — Cierra una participación en curso al completarla, abandonarla o
  * agotarse el tiempo: guarda momento de fin, tiempo total y estado final.
  */
-export async function finishParticipation(participationId, { estado, startedAtMs, puntajeFinal = null } = {}) {
+export async function finishParticipation(participationId, { estado, startedAtMs, puntajeFinal = null, usuarioId, nickname } = {}) {
   if (!participationId) throw new Error("Falta el id de la participación a finalizar.");
   if (!ESTADOS_PARTICIPACION.includes(estado) || estado === "en_curso") {
     throw new Error(`Estado final inválido: ${estado}`);
   }
   const tiempoTotalMs = Number.isFinite(startedAtMs) ? Math.max(0, Date.now() - startedAtMs) : null;
-  await updateDoc(doc(db, COLLECTION, participationId), {
+  const batch = writeBatch(db);
+  batch.update(doc(db, COLLECTION, participationId), {
     estado,
     momentoFin: serverTimestamp(),
     tiempoTotalMs,
     ...(puntajeFinal !== null ? { puntajeFinal } : {}),
   });
+  // Ranking global: acumula por usuario, independiente de las participaciones.
+  if (estado === "completada" && puntajeFinal !== null && usuarioId) {
+    batch.set(doc(db, "ranking", usuarioId), {
+      usuarioId,
+      nickname: String(nickname ?? "Agente").slice(0, 40),
+      puntaje: increment(puntajeFinal),
+      tiempoTotalMs: increment(tiempoTotalMs ?? 0),
+      completadas: increment(1),
+      ultimaParticipacionId: participationId,
+    }, { merge: true });
+  }
+  await batch.commit();
 }
 
 /** DAT01/DAT02 — Suscripción en tiempo real, para el panel de administración. */
@@ -107,7 +120,7 @@ export function summarizeByExperience(participations) {
   return map;
 }
 
-const BATCH_LIMIT = 500; // máximo de operaciones por writeBatch en Firestore
+const BATCH_LIMIT = 250; // writeBatch admite 500 ops; cada participación borra 2 docs (participación + ranking)
 
 /**
  * Borra TODAS las participaciones (cualquier estado) de una experiencia.
@@ -122,7 +135,9 @@ export async function deleteParticipationsByExperience(experienciaId) {
   );
   for (let i = 0; i < snap.docs.length; i += BATCH_LIMIT) {
     const batch = writeBatch(db);
-    snap.docs.slice(i, i + BATCH_LIMIT).forEach((d) => batch.delete(d.ref));
+    snap.docs.slice(i, i + BATCH_LIMIT).forEach((d) => {
+      batch.delete(d.ref);
+    });
     await batch.commit();
   }
   return snap.size;

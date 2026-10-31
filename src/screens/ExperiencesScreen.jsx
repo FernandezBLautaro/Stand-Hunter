@@ -157,7 +157,7 @@ export const ExperiencesScreen = ({ experiences, participant, onStartExperience,
                 </span>
                 <div className={`flex items-center gap-1 font-label-code text-[13px] font-extrabold ${estilo.puntos}`}>
                   <span className="material-symbols-outlined text-[16px]">{estilo.icono}</span>
-                  <span>+{exp.puntos.toLocaleString()} pts</span>
+                  <span> ±{exp.puntos.toLocaleString()} pts</span>
                 </div>
               </div>
 

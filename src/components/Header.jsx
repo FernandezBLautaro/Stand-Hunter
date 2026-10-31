@@ -4,6 +4,7 @@ const tabTitles = {
   experiencias: 'Experiencias',
   'escaner-ar': 'Escáner AR',
   'asistente-ia': 'Asistente IA',
+  ranking: 'Ranking',
   recompensas: 'Recompensas',
 };
 

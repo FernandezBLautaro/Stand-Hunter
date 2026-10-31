@@ -1,4 +1,4 @@
-// version 0.3
+// version 0.4
 rules_version = '2';
 
 service cloud.firestore {
@@ -60,6 +60,10 @@ service cloud.firestore {
 
     function onlyChanges(keys) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    function rkPrev(f) {
+      return resource == null ? 0 : resource.data.get(f, 0);
     }
 
     match /usuarios/{uid} {
@@ -177,8 +181,35 @@ service cloud.firestore {
           && request.resource.data.get('origen', '') is string
           && request.resource.data.get('origen', '').size() <= 30
           && request.resource.data.creadoEl == request.time;
-        allow read: if isAdmin();
+        allow read: if isAdmin() || isOwner(id_participacion);
       }
+    }
+
+    // GAM05: ranking global, un doc por usuario (id = uid). Solo se suma al completar SU participación en curso.
+    match /ranking/{uid} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['usuarioId','nickname','puntaje','tiempoTotalMs','completadas','ultimaParticipacionId'])
+        && request.resource.data.usuarioId == uid
+        && request.resource.data.nickname is string && request.resource.data.nickname.size() <= 40
+        && request.resource.data.ultimaParticipacionId is string
+        && isOwner(request.resource.data.ultimaParticipacionId)
+        && get(partPath(request.resource.data.ultimaParticipacionId)).data.estado == 'en_curso'
+        && getAfter(partPath(request.resource.data.ultimaParticipacionId)).data.estado == 'completada'
+        && request.resource.data.puntaje ==
+           rkPrev('puntaje') + getAfter(partPath(request.resource.data.ultimaParticipacionId)).data.puntajeFinal
+        && request.resource.data.tiempoTotalMs ==
+           rkPrev('tiempoTotalMs') + getAfter(partPath(request.resource.data.ultimaParticipacionId)).data.tiempoTotalMs
+        && request.resource.data.completadas == rkPrev('completadas') + 1;
+      allow delete: if isAdmin();
+    }
+
+    // DAT04: el admin puede consultar progreso y pistas_chat de TODAS las participaciones (collectionGroup).
+    match /{path=**}/progreso/{id} {
+      allow read: if isAdmin();
+    }
+    match /{path=**}/pistas_chat/{id} {
+      allow read: if isAdmin();
     }
 
     match /elementos_fisicos/{id} {

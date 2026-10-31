@@ -195,7 +195,7 @@ export const ChatbotScreen = ({ onBack, onGoToScanner }) => {
 
       <p className="text-[11px] text-[#c9c5d0]/80 mt-2 flex items-start gap-1">
         <span className="material-symbols-outlined text-[14px] text-[#ffb1c4]">warning</span>
-        Las consultas al asistente quedan registradas y podrán restar puntos de tu marcador.
+        Cada consulta al asistente y cada pista oficial restan {desafioActual.penalizacionPista} pts de este desafío.
       </p>
 
       {/* Conversación */}

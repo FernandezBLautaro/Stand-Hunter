@@ -166,14 +166,16 @@ export function ParticipationProvider({ user, nickname, experiences, onError, ch
     }
   }, [user, nickname]);
 
-  const conclude = useCallback(async () => {
+  const conclude = useCallback(async (puntaje) => {
     const cur = activeRef.current;
     if (cur) {
       try {
         await finishParticipation(cur.id, {
           estado: 'completada',
           startedAtMs: cur.startedAtMs,
-          puntajeFinal: selectedRef.current?.puntos ?? null,
+          puntajeFinal: puntaje ?? null,
+          usuarioId: user?.uid,
+          nickname,
         });
       } catch (err) {
         reportError(err);
@@ -181,7 +183,7 @@ export function ParticipationProvider({ user, nickname, experiences, onError, ch
     }
     setActive(null);
     setSelectedExperience(null);
-  }, []);
+  }, [user, nickname]);
 
   const abandon = useCallback(async () => {
     const cur = activeRef.current;

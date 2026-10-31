@@ -1,7 +1,7 @@
 // Inicialización única de Firebase para toda la app.
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 import { getAI, GoogleAIBackend } from "firebase/ai";
 
@@ -28,5 +28,6 @@ if (siteKey) {
 }
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+// DAT03: caché persistente → las escrituras pendientes (p. ej. un desafío resuelto sin conexión) sobreviven a una recarga.
+export const db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
 export const ai = getAI(app, { backend: new GoogleAIBackend(), useLimitedUseAppCheckTokens: !!siteKey });

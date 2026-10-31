@@ -3,7 +3,7 @@
  * En JS no existen los `interface`/`type` de TypeScript: se documentan
  * acá con JSDoc solo como referencia para el equipo, sin efecto en runtime.
  *
- * @typedef {'experiencias' | 'escaner-ar' | 'asistente-ia' | 'recompensas'} ActiveTab
+ * @typedef {'experiencias' | 'escaner-ar' | 'asistente-ia' | 'ranking' | 'recompensas'} ActiveTab
  *
  * @typedef {Object} ParticipantProfile
  * @property {string} id

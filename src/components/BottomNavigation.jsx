@@ -2,6 +2,7 @@ const navItems = [
   { id: 'experiencias', label: 'Experiencias', icon: 'explore', availableInSprint1: true },
   { id: 'escaner-ar', label: 'Escáner AR', icon: 'center_focus_strong', availableInSprint1: true },
   { id: 'asistente-ia', label: 'Asistente IA', icon: 'smart_toy', availableInSprint1: true },
+  { id: 'ranking', label: 'Ranking', icon: 'leaderboard', availableInSprint1: true },
   { id: 'recompensas', label: 'Recompensas', icon: 'military_tech', availableInSprint1: false },
 ];
 

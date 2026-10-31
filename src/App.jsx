@@ -4,7 +4,7 @@ import { subscribeExperiences, describeFirestoreError } from './services/firesto
 import { subscribeSession, isAdminProfile } from './services/authService.js';
 //Context
 import { ParticipationProvider, useParticipation } from './context/ParticipationContext.jsx';
-import { ChallengeProvider } from './context/ChallengeContext.jsx';
+import { ChallengeProvider, useChallenge } from './context/ChallengeContext.jsx';
 //Screens
 import { SplashScreen } from './screens/SplashScreen.jsx';
 import { OnboardingScreen } from './screens/OnboardingScreen.jsx';
@@ -12,6 +12,7 @@ import { ExperiencesScreen } from './screens/ExperiencesScreen.jsx';
 import { ComingSoonScreen } from './screens/ComingSoonScreen.jsx';
 import { ChatbotScreen } from './screens/ChatbotScreen.jsx';
 import { ScannerScreen } from './screens/ScannerScreen.jsx';
+import { RankingScreen } from './screens/RankingScreen.jsx';
 import AdminExperiencesScreen from './screens/admin/AdminExperiencesScreen.jsx';
 //Components
 import { Header } from './components/Header.jsx';
@@ -119,6 +120,7 @@ function AppShell({
   const [pendingExperience, setPendingExperience] = useState(null);
 
   const { active, startOrResume, conclude, abandon, reset } = useParticipation();
+  const { puntaje } = useChallenge();
 
   const handleSplashComplete = useCallback(() => {
     setShowSplash(false);
@@ -148,7 +150,7 @@ function AppShell({
   }, [session.user, pendingExperience, startOrResume]);
 
   const handleConcludeExperience = async () => {
-    await conclude();
+    await conclude(puntaje);
     setActiveTab('experiencias');
   };
 
@@ -219,6 +221,8 @@ function AppShell({
                 onGoToScanner={() => setActiveTab('escaner-ar')}
               />
             )}
+
+            {activeTab === 'ranking' && <RankingScreen experiences={experiences} participant={participant} />}
 
             {activeTab === 'recompensas' && (
               <ComingSoonScreen

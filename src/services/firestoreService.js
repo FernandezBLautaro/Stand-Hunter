@@ -30,8 +30,10 @@
 // Las escrituras las bloquean las reglas de Firestore (solo claim admin).
 // Este servicio valida y normaliza antes de escribir para no guardar basura.
 
-import { collection, doc, getDoc, getDocs, setDoc, updateDoc, 
-         deleteDoc, onSnapshot, query, where, serverTimestamp, writeBatch} from "firebase/firestore";
+import {
+  collection, doc, getDoc, getDocs, setDoc, updateDoc,
+  deleteDoc, onSnapshot, query, where, serverTimestamp, writeBatch
+} from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { normalizarRespuesta, compactar, parseCriterios } from "../utils/normalizar.js";
 import { deleteParticipationsByExperience } from "./participationService.js";
@@ -63,12 +65,16 @@ const DEFAULT_DIFICULTAD = DIFICULTADES[0];
 export const DENSIDAD_MEDIA = 0.35;
 export const DENSIDAD_DIFICIL = 0.6;
 
+/* Gestion de Puntage */
+export const MULTIPLICADOR_DIFICULTAD = { facil: 1, media: 1.25, dificil: 1.5 };
+export const BONUS_TIEMPO = 0;
+
 /**
  * Duración y dificultad derivadas de los desafíos (el admin no las ingresa).
  *  - duracion  = suma de tiempoMaximo (s) → minutos, redondeado hacia arriba (mín. 1)
  *  - densidad  = cantidad de desafíos / minutos totales
  */
-export function calcularDuracionYDificultad(desafios = []) {
+export function calcular_Duracion_Dificultad_Y_PuntosEstimados(desafios = []) {
   const lista = Array.isArray(desafios) ? desafios : [];
   const segundos = lista.reduce((acc, d) => acc + clamp(d?.tiempoMaximo, 30, 600, 120), 0);
   const minutos = segundos / 60;
@@ -76,7 +82,10 @@ export function calcularDuracionYDificultad(desafios = []) {
   const densidad = minutos > 0 ? lista.length / minutos : 0;
   const dificultad =
     densidad >= DENSIDAD_DIFICIL ? "dificil" : densidad >= DENSIDAD_MEDIA ? "media" : "facil";
-  return { duracion, dificultad, densidad: Number(densidad.toFixed(2)), segundos };
+  const puntos = Math.round(
+    lista.reduce((acc, d) => acc + clamp(d?.puntosOtorgados, 50, 1000, 100), 0) * (MULTIPLICADOR_DIFICULTAD[dificultad] ?? 1)
+  );
+  return { duracion, dificultad, puntos, densidad: Number(densidad.toFixed(2)), segundos };
 }
 
 
@@ -152,9 +161,6 @@ function sanitize(data, { partial = false } = {}) {
   if (!partial || has("descripcion")) {
     out.descripcion = String(data.descripcion ?? "").trim().slice(0, 400);
   }
-  if (!partial || has("puntos")) {
-    out.puntos = clamp(data.puntos, 0, 5000, 500);
-  }
   if (!partial || has("locacion")) {
     out.locacion = String(data.locacion ?? "").trim().slice(0, 120);
   }
@@ -181,10 +187,11 @@ function sanitize(data, { partial = false } = {}) {
     });
     out.desafios = pubs;
 
-    // Duración y dificultad derivadas (se recalculan cada vez que cambian los desafíos).
-    const { duracion, dificultad } = calcularDuracionYDificultad(pubs);
+    // Duración, puntos estimados y dificultad derivadas (se recalculan cada vez que cambian los desafíos).
+    const { duracion, dificultad, puntos } = calcular_Duracion_Dificultad_Y_PuntosEstimados(pubs);
     out.duracion = duracion;
     out.dificultad = dificultad;
+    out.puntos = puntos;
   }
   if (has("activa")) {
     out.activa = Boolean(data.activa);

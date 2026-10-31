@@ -8,8 +8,9 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 // } from "../../services/adminService.js";
 import {
   subscribeExperiences, createExperience, updateExperience, setExperienceActive, deleteExperience, seedExperiences,
-  newChallenge, getSecretos, describeFirestoreError, TIPOS_VALIDACION, DIFICULTAD_LABEL, calcularDuracionYDificultad,
+  newChallenge, getSecretos, describeFirestoreError, TIPOS_VALIDACION, DIFICULTAD_LABEL, calcular_Duracion_Dificultad_Y_PuntosEstimados,
 } from "../../services/firestoreService.js";
+import { getUsoPistas } from "../../services/challengeService.js";
 import { subscribeParticipations, summarizeByExperience } from "../../services/participationService.js";
 import { AdminBottomNav } from "../../components/AdminBottomNav.jsx";
 import AdminInventarioScreen from "./AdminInventarioScreen.jsx";
@@ -56,14 +57,17 @@ function AdminPanel({ onClose, onNavigate }) {
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [tab, setTab] = useState("a");
+  const [usoPistas, setUsoPistas] = useState(null); // DAT04: Map<desafioId,{base,chat}> | null
   const [expandedId, setExpandedId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [slowSave, setSlowSave] = useState(false); // guardado > 3 s: se ofrece cancelar
+  const cancelSave = useRef(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [toast, setToast] = useState({ visible: false, mensaje: "", error: false });
   const toastTimer = useRef(null);
   const [participations, setParticipations] = useState([]);
   const statsByExp = useMemo(() => summarizeByExperience(participations), [participations]);
-  const calculado = useMemo(() => calcularDuracionYDificultad(draft.desafios), [draft.desafios]);
+  const calculado = useMemo(() => calcular_Duracion_Dificultad_Y_PuntosEstimados(draft.desafios), [draft.desafios]);
 
   useEffect(() => subscribeParticipations(setParticipations, () => { }), []);
   useEffect(() => () => clearTimeout(toastTimer.current), []);
@@ -116,12 +120,15 @@ function AdminPanel({ onClose, onNavigate }) {
     });
     setExpandedId(null);
     setConfirmDelete(false);
+    setUsoPistas(null);
+    getUsoPistas().then(setUsoPistas).catch(() => {});
     setTab("b");
     setEditorOpen(true);
   };
 
   const openNew = () => {
     setDraft({ ...EMPTY_DRAFT, desafios: [] });
+    setUsoPistas(null);
     setExpandedId(null);
     setConfirmDelete(false);
     setTab("a");
@@ -187,18 +194,26 @@ function AdminPanel({ onClose, onNavigate }) {
       ? ` Ojo: ${sinPistas} desafío(s) sin pistas base; los participantes podrían quedar bloqueados.`
       : "";
     setSaving(true);
+    const slowTimer = setTimeout(() => setSlowSave(true), 3000);
     try {
-      if (draft.id) {
-        await updateExperience(draft.id, draft);
-        showToast(`Cambios guardados.${aviso}`, !!aviso);
-      } else {
-        await createExperience(draft);
-        showToast(`Experiencia creada. Está oculta hasta que la actives.${aviso}`, !!aviso);
-      }
+      // shortcut: cancelar solo deja de esperar; Firestore no aborta una escritura ya encolada, ni siquiera offline.
+      const cancelled = new Promise((_, reject) => {
+        cancelSave.current = () => reject(Object.assign(new Error("Guardado cancelado. Si había conexión, el cambio pudo aplicarse igual."), { cancelled: true }));
+      });
+      const op = draft.id ? updateExperience(draft.id, draft) : createExperience(draft);
+      op.catch(() => {}); // evita rechazo sin manejar si se cancela y la escritura falla después
+      await Promise.race([op, cancelled]);
+      showToast(
+        draft.id ? `Cambios guardados.${aviso}` : `Experiencia creada. Está oculta hasta que la actives.${aviso}`,
+        !!aviso
+      );
       closeEditor();
     } catch (err) {
       showToast(err.code ? describeFirestoreError(err) : err.message, true);
     } finally {
+      clearTimeout(slowTimer);
+      cancelSave.current = null;
+      setSlowSave(false);
       setSaving(false);
     }
   };
@@ -562,6 +577,10 @@ function AdminPanel({ onClose, onNavigate }) {
                 </span>
                 <div className="grid grid-cols-2 gap-3 text-[12px] text-[#c9c5d0]">
                   <span className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[16px]">military_tech</span>
+                    Puntos (est.): <strong className="text-[#7df4ff]">±{calculado.puntos}</strong>
+                  </span>
+                  <span className="flex items-center gap-1">
                     <span className="material-symbols-outlined text-[16px]">timer</span>
                     Duración: <strong className="text-[#7df4ff]">{calculado.duracion} min</strong>
                   </span>
@@ -576,31 +595,6 @@ function AdminPanel({ onClose, onNavigate }) {
                   {draft.desafios.length} {draft.desafios.length === 1 ? "desafío" : "desafíos"} ÷ {(calculado.segundos / 60).toFixed(1)} min
                   = {calculado.densidad} desafíos/min. Se actualiza al agregar o editar desafíos en el Secuenciador.
                 </p>
-              </div>
-
-              <div>
-                <span className="text-[12px] text-[#c9c5d0] block mb-1">Puntos</span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    aria-label="Restar 50 puntos"
-                    className="w-9 h-10 rounded-lg bg-[#201d33] flex items-center justify-center text-[18px] font-bold cursor-pointer"
-                    onClick={() => patchDraft({ puntos: Math.max(0, Number(draft.puntos) - 50) })}
-                  >
-                    −
-                  </button>
-                  <div className="flex-1 bg-[#0e0b21] rounded-lg h-10 flex items-center justify-center font-headline-sm text-[16px] font-semibold text-[#7df4ff]">
-                    {draft.puntos} pts
-                  </div>
-                  <button
-                    type="button"
-                    aria-label="Sumar 50 puntos"
-                    className="w-9 h-10 rounded-lg bg-[#201d33] flex items-center justify-center text-[18px] font-bold cursor-pointer"
-                    onClick={() => patchDraft({ puntos: Math.min(5000, Number(draft.puntos) + 50) })}
-                  >
-                    +
-                  </button>
-                </div>
               </div>
 
               <div>
@@ -655,6 +649,33 @@ function AdminPanel({ onClose, onNavigate }) {
 
           {tab === "b" && (
             <div className="flex flex-col gap-3">
+              {draft.id && usoPistas && (() => {
+                const filas = draft.desafios
+                  .map((d, i) => ({ d, i, ...(usoPistas.get(d.id) ?? { base: 0, chat: 0 }) }))
+                  .map((f) => ({ ...f, total: f.base + f.chat }))
+                  .filter((f) => f.total > 0)
+                  .sort((a, b) => b.total - a.total);
+                return (
+                  <div className="bg-[#0e0b21] p-3 rounded-xl border border-[#ff027f]/30 flex flex-col gap-2">
+                    <span className="text-[12px] text-[#ffb1c4] font-semibold flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">lightbulb</span>
+                      Desafíos con más uso de pistas
+                    </span>
+                    {filas.length === 0 && <span className="text-[12px] text-[#c9c5d0]">Todavía no se usaron pistas.</span>}
+                    {filas.map((f) => (
+                      <div key={f.d.id} className="flex flex-col gap-0.5">
+                        <div className="flex justify-between gap-2 text-[12px] text-[#c9c5d0]">
+                          <span className="truncate">{f.i + 1}. {f.d.titulo}</span>
+                          <span className="shrink-0"><strong className="text-[#e5defe]">{f.total}</strong> ({f.base} base · {f.chat} chat)</span>
+                        </div>
+                        <div className="h-1.5 rounded bg-[#2a273e]">
+                          <div className="h-full rounded bg-[#ff027f]" style={{ width: `${(f.total / filas[0].total) * 100}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
               <div className="flex items-center justify-between">
                 <span className="font-headline-sm text-[16px] font-semibold">
                   {draft.desafios.length} {draft.desafios.length === 1 ? "etapa" : "etapas"}
@@ -879,10 +900,10 @@ function AdminPanel({ onClose, onNavigate }) {
         <div className="px-4 py-2 bg-[#1c192f] flex items-center gap-2 pb-safe">
           <button
             type="button"
-            onClick={closeEditor}
+            onClick={saving && slowSave ? () => cancelSave.current?.() : closeEditor}
             className="flex-1 py-3 rounded-xl bg-[#201d33] hover:bg-[#35324a] text-[13px] font-semibold transition-colors active:scale-[0.98] cursor-pointer"
           >
-            Cerrar
+            {saving && slowSave ? "Cancelar guardado" : "Cerrar"}
           </button>
           <button
             type="button"

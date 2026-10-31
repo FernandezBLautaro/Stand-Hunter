@@ -47,7 +47,7 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onOpenAssistant }
   } = useParticipation();
   const {
     desafios, desafioActual, indiceActual, completo, resueltos, total, pistasEntregadas, pistasTotal,
-    restanteDesafioMs, desafioExcedido, busy, hintBusy, bloqueado, submit, requestHint,
+    restanteDesafioMs, desafioExcedido, busy, hintBusy, bloqueado, submit, requestHint, puntaje,
   } = useChallenge();
 
   const [scanning, setScanning] = useState(false);
@@ -183,7 +183,7 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onOpenAssistant }
           </span>
           <span className="flex items-center gap-1">
             <span className="material-symbols-outlined text-[14px]">military_tech</span>
-            +{experience.puntos} pts
+            {puntaje} pts
           </span>
           {experience.locacion && (
             <span className="flex items-center gap-1">
@@ -286,7 +286,7 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onOpenAssistant }
                   ? 'Sin pistas base'
                   : pistasAgotadas
                   ? 'Pistas agotadas'
-                  : `Pedir pista${typeof cantBase === 'number' ? ` (${entregadas.length}/${cantBase})` : ''}`}
+                  : `Pedir pista −${desafioActual.penalizacionPista} pts${typeof cantBase === 'number' ? ` (${entregadas.length}/${cantBase})` : ''}`}
               </button>
               {onOpenAssistant && (
                 <button
