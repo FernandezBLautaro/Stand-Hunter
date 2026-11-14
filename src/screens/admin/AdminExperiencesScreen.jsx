@@ -14,6 +14,8 @@ import { getUsoPistas } from "../../services/challengeService.js";
 import { subscribeParticipations, summarizeByExperience } from "../../services/participationService.js";
 import { AdminBottomNav } from "../../components/AdminBottomNav.jsx";
 import AdminInventarioScreen from "./AdminInventarioScreen.jsx";
+import AdminPremiosScreen from "./AdminPremiosScreen.jsx";
+import AdminCanjeScreen from "./AdminCanjeScreen.jsx";
 
 const TIPO_LABEL = { pregunta: "Pregunta", codigo: "Código", voz: "Voz" };
 
@@ -43,6 +45,8 @@ export default function AdminExperiencesScreen({ onClose }) {
   if (section === "inventario") {
     return <AdminInventarioScreen onClose={onClose} onNavigate={setSection} />;
   }
+  if (section === "premios") return <AdminPremiosScreen onClose={onClose} onNavigate={setSection} />;
+  if (section === "canje") return <AdminCanjeScreen onClose={onClose} onNavigate={setSection} />;
   return <AdminPanel onClose={onClose} onNavigate={setSection} />;
 }
 
@@ -431,13 +435,13 @@ function AdminPanel({ onClose, onNavigate }) {
                     </div>
                   </button>
                   <span className={`text-[10px] mt-1 ${exp.activa ? "text-[#ff027f]" : "text-[#928f99]"}`}>
-                    {exp.activa ? "Activa en la PWA" : "Oculta en la PWA"}
+                    {exp.activa ? "Activa" : "Oculta"}
                   </span>
                 </div>
               </div>
 
-              <div className="mt-3 flex items-center justify-between text-[#c9c5d0]">
-                <div className="flex items-center gap-3 text-[12px]">
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[#c9c5d0]">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
                   <span className="flex items-center gap-1">
                     <span className="material-symbols-outlined text-[16px]">assignment</span>
                     {exp.desafios.length} {exp.desafios.length === 1 ? "desafío" : "desafíos"}
@@ -507,14 +511,14 @@ function AdminPanel({ onClose, onNavigate }) {
               key={t.key}
               type="button"
               onClick={() => setTab(t.key)}
-              className={`flex-1 py-2.5 px-1 rounded-t-lg text-[12px] font-semibold flex items-center justify-center gap-1.5 relative cursor-pointer ${tab === t.key ? "bg-[#201d33] text-[#00eefc]" : "bg-[#2a273e] text-[#c9c5d0]"
+              className={`flex-1 min-w-0 py-2.5 px-1 rounded-t-lg text-[12px] font-semibold flex items-center justify-center gap-1.5 relative cursor-pointer ${tab === t.key ? "bg-[#201d33] text-[#00eefc]" : "bg-[#2a273e] text-[#c9c5d0]"
                 }`}
             >
               {tab === t.key && (
                 <div className="absolute top-0 left-4 right-4 h-0.5 bg-[#00eefc] rounded-full shadow-[0_0_8px_rgba(0,238,252,0.8)]" />
               )}
               <span className="material-symbols-outlined text-[16px]">{t.icono}</span>
-              <span>{t.label}</span>
+              <span className="min-w-0 text-center leading-tight truncate">{t.label}</span>
             </button>
           ))}
         </div>
@@ -531,7 +535,7 @@ function AdminPanel({ onClose, onNavigate }) {
                       <span className="material-symbols-outlined text-[14px]">insights</span>
                       Participaciones registradas
                     </span>
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[12px] text-[#c9c5d0]">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-[#c9c5d0]">
                       <span>Total: <strong className="text-[#e5defe]">{s.total}</strong></span>
                       <span>En curso: <strong className="text-[#7df4ff]">{s.en_curso}</strong></span>
                       <span>Completadas: <strong className="text-[#00eefc]">{s.completada}</strong></span>
@@ -575,7 +579,7 @@ function AdminPanel({ onClose, onNavigate }) {
                   <span className="material-symbols-outlined text-[14px]">calculate</span>
                   Calculado automáticamente
                 </span>
-                <div className="grid grid-cols-2 gap-3 text-[12px] text-[#c9c5d0]">
+                <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] text-[#c9c5d0]">
                   <span className="flex items-center gap-1">
                     <span className="material-symbols-outlined text-[16px]">military_tech</span>
                     Puntos (est.): <strong className="text-[#7df4ff]">±{calculado.puntos}</strong>
@@ -676,7 +680,7 @@ function AdminPanel({ onClose, onNavigate }) {
                   </div>
                 );
               })()}
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-headline-sm text-[16px] font-semibold">
                   {draft.desafios.length} {draft.desafios.length === 1 ? "etapa" : "etapas"}
                 </span>
@@ -960,7 +964,7 @@ function PistasBaseEditor({ pistas, onChange }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-[12px] text-[#c9c5d0]">Pistas base (se entregan en este orden)</span>
         {pistas.length < MAX && (
           <button

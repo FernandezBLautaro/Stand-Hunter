@@ -6,6 +6,7 @@ import { ChallengeAnswer } from '../components/ChallengeAnswer.jsx';
 import { useParticipation } from '../context/ParticipationContext.jsx';
 import { useChallenge } from '../context/ChallengeContext.jsx';
 import { parseScanPayload } from '../services/elementosService.js';
+import { senal } from '../utils/senales.js';
 
 const formatTime = (ms) => {
   const total = Math.ceil(ms / 1000);
@@ -36,7 +37,7 @@ const feedbackIcon = { ok: 'check_circle', info: 'info', error: 'error' };
  *   onOpenAssistant?: () => void,
  * }} props
  */
-export const ScannerScreen = ({ onBack, onConclude, onAbandon, onOpenAssistant }) => {
+export const ParticipationScreen = ({ onBack, onConclude, onAbandon, onOpenAssistant }) => {
   const {
     selectedExperience: experience,
     active,
@@ -67,6 +68,7 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onOpenAssistant }
 
   const showFeedback = (type, text) => {
     setFeedback({ type: type === 'warn' ? 'info' : type, text });
+    senal(type);
     clearTimeout(feedbackTimer.current);
     feedbackTimer.current = setTimeout(() => setFeedback(null), 3500);
   };
@@ -156,13 +158,13 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onOpenAssistant }
     <div className="flex flex-col w-full max-w-md mx-auto px-4 pt-3 pb-40 gap-4">
       {/* ESC01 — Experiencia + cuenta regresiva total (ESC11) */}
       <section className="rounded-2xl bg-[#1c192f] border border-[#00eefc]/25 p-4 flex flex-col gap-2">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="font-headline-md text-[20px] font-bold text-[#e5defe] leading-tight">{experience.nombre}</h1>
+        <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+          <h1 className="min-w-0 flex-1 basis-40 break-words font-headline-md text-[20px] font-bold text-[#e5defe] leading-tight">{experience.nombre}</h1>
           {remainingMs !== null && (
             <div
               role="timer"
               aria-label="Tiempo restante"
-              className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-label-code text-[13px] font-bold ${
+              className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-label-code text-[13px] font-bold ${
                 urgente
                   ? 'bg-[#3e001a] border-[#ff027f]/60 text-[#ff027f] animate-pulse shadow-[0_0_10px_rgba(255,2,127,0.4)]'
                   : 'bg-[#0e0b21] border-[#00eefc]/30 text-[#7df4ff]'
@@ -229,11 +231,11 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onOpenAssistant }
                 {indiceActual + 1}
               </span>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                   <p className="font-label-code text-[11px] text-[#00eefc] uppercase tracking-wider">
                     Desafío {indiceActual + 1} de {total}
                   </p>
-                  <span className="shrink-0 px-2 py-0.5 rounded-full bg-[#0e0b21] border border-[#00eefc]/30 text-[10px] text-[#00eefc] flex items-center gap-1">
+                  <span className="shrink-0 whitespace-nowrap px-2 py-0.5 rounded-full bg-[#0e0b21] border border-[#00eefc]/30 text-[10px] text-[#00eefc] flex items-center gap-1">
                     <span className="material-symbols-outlined text-[12px]">{TIPO_ICON[desafioActual.tipoValidacion]}</span>
                     {TIPO_LABEL[desafioActual.tipoValidacion]}
                   </span>
@@ -274,12 +276,12 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onOpenAssistant }
               onScan={() => setScanning(true)}
             />
 
-            <div className="flex gap-2 pt-1">
+            <div className="flex flex-wrap gap-2 pt-1">
               <button
                 type="button"
                 onClick={handleHint}
                 disabled={bloqueado || hintBusy || sinPistasBase || pistasAgotadas}
-                className="flex-1 h-11 rounded-lg border border-[#ff027f]/40 text-[#ffb1c4] text-[13px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex-1 basis-36 min-h-11 py-2 text-center rounded-lg border border-[#ff027f]/40 text-[#ffb1c4] text-[13px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <span className="material-symbols-outlined text-[18px]">lightbulb</span>
                 {sinPistasBase
@@ -293,7 +295,7 @@ export const ScannerScreen = ({ onBack, onConclude, onAbandon, onOpenAssistant }
                   type="button"
                   onClick={onOpenAssistant}
                   disabled={bloqueado}
-                  className="flex-1 h-11 rounded-lg bg-[#2a273e] text-[#e5defe] text-[13px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+                  className="flex-1 basis-36 min-h-11 py-2 text-center rounded-lg bg-[#2a273e] text-[#e5defe] text-[13px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
                 >
                   <span className="material-symbols-outlined text-[18px]">smart_toy</span>
                   Asistente IA

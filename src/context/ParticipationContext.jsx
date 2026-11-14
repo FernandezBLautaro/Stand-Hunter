@@ -2,7 +2,7 @@
 // Fuente única de verdad de la participación en curso:
 //  - Reanuda la participación si el usuario vuelve a tocar «Iniciar desafío» dentro del tiempo.
 //  - Corre la cuenta regresiva (duración de la experiencia) y, al llegar a 0, marca la
-//    participación como 'expirada'. Si el usuario está en el ScannerScreen, expone `expiredInfo`
+//    participación como 'expirada'. Si el usuario está en ParticipationScreen, expone `expiredInfo`
 //    para que se muestre el InfoModal.
 //  - Restaura la participación tras recargar la página (se busca en Firestore: estado 'en_curso').
 import {
@@ -175,7 +175,7 @@ export function ParticipationProvider({ user, nickname, experiences, onError, ch
           startedAtMs: cur.startedAtMs,
           puntajeFinal: puntaje ?? null,
           usuarioId: user?.uid,
-          nickname,
+          usuarioNickname: nickname,
         });
       } catch (err) {
         reportError(err);

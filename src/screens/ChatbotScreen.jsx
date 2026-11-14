@@ -170,7 +170,7 @@ export const ChatbotScreen = ({ onBack, onGoToScanner }) => {
   const speechNotice = describeSpeechError(speech.error);
 
   return (
-    <div className="flex flex-col w-full max-w-md mx-auto px-4 pt-3 h-[calc(100dvh-9rem)]">
+    <div className="flex flex-col w-full max-w-md mx-auto px-4 pt-3 h-[calc(100dvh-9rem)] min-h-[34rem]">
       {/* Objetivo + temporizador siempre visibles */}
       <div className="rounded-xl bg-[#1c192f] border border-[#00eefc]/25 p-3 flex items-center justify-between gap-3">
         <div className="min-w-0">

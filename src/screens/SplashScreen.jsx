@@ -31,22 +31,6 @@ export const SplashScreen = ({ onComplete }) => {
       <div className="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-gradient-to-tl from-[#ff027f]/35 via-[#1a1442]/20 to-transparent blur-3xl pointer-events-none" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-gradient-to-r from-[#00eefc]/10 via-[#1a1442]/40 to-transparent blur-2xl pointer-events-none" />
 
-      {/* Top Telemetry & Spatial Context */}
-      <div className="w-full max-w-sm flex items-center justify-between text-[#c9c5d0]/80 z-10 px-2 pt-safe">
-        <div className="flex items-center gap-1.5 bg-[#0e0b21]/80 backdrop-blur-md px-3 py-1 rounded-full border border-[#00eefc]/20 shadow-sm">
-          <span className="material-symbols-outlined text-[#00eefc] text-[14px] animate-pulse">
-            radar
-          </span>
-          <span className="font-label-code text-[11px] tracking-widest text-[#00eefc] font-semibold">
-            HUD.SYS.ACTIVO
-          </span>
-        </div>
-        <div className="flex items-center gap-1 bg-[#0e0b21]/80 backdrop-blur-md px-2.5 py-1 rounded-full text-[#c9c5d0] font-label-code text-[11px] border border-[#ff027f]/20">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#00eefc] animate-ping mr-1" />
-          <span>LATENCIA: 12ms</span>
-        </div>
-      </div>
-
       {/* Central Brand & Scanner Anchor */}
       <div className="flex flex-col items-center justify-center my-auto z-10 w-full max-w-xs text-center">
         {/* Rotating Visor Reticle Frame with Logo */}
@@ -113,14 +97,6 @@ export const SplashScreen = ({ onComplete }) => {
         <p className="font-label-md text-[11px] text-[#c9c5d0] uppercase tracking-[0.24em] mt-2 text-balance">
           Laboratorio de Experiencias Interactivas
         </p>
-
-        {/* Cybernetic State Pill Badge */}
-        <div className="mt-6 inline-flex items-center gap-2 bg-[#2a273e]/80 border border-[#00eefc]/30 backdrop-blur-md px-3.5 py-1.5 rounded-full shadow-lg">
-          <span className="w-2 h-2 rounded-full bg-[#00eefc] animate-pulse shadow-[0_0_8px_#00eefc]" />
-          <span className="font-label-code text-[10px] text-[#7df4ff] tracking-wider uppercase font-semibold">
-            V2.4 • INICIALIZANDO SENSORES &amp; IA
-          </span>
-        </div>
       </div>
 
       {/* Bottom Interactive Telemetry & Loader */}

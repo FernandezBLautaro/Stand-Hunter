@@ -106,7 +106,7 @@ export const QrScanner = ({ onDetect, onClose }) => {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[70] bg-[#0e0b21] flex flex-col">
+    <div role="dialog" aria-modal="true" aria-label="Escanear código" className="fixed inset-0 z-[70] bg-[#0e0b21] flex flex-col">
       <div className="pt-safe px-4 h-16 flex items-center justify-between border-b border-[#00eefc]/15">
         <span className="font-headline-sm text-[16px] font-bold text-[#e5defe]">Escanear código</span>
         <button

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { DIFICULTAD_LABEL } from '../services/firestoreService.js';
 import { ThemeSelector } from '../components/ThemeSelector.jsx';
+import { normalizarTematica } from '../utils/normalizar.js';
 
 const ESTILO = {
   facil: {
@@ -40,7 +41,7 @@ const coincide = (filtro, tematica, exp) => {
     filtro === 'corta' ? exp.duracion <= 10 :
     exp.dificultad === filtro;
 
-  const matchTematica = tematica === 'todas' || exp.tematica === tematica;
+  const matchTematica = tematica === 'todas' || normalizarTematica(exp.tematica) === tematica;
 
   return matchFiltro && matchTematica;
 };
@@ -60,7 +61,8 @@ export const ExperiencesScreen = ({ experiences, participant, onStartExperience,
   const tematicas = useMemo(() => {
     const conteo = new Map();
     for (const experience of experiences) {
-      if (experience.tematica) conteo.set(experience.tematica, (conteo.get(experience.tematica) ?? 0) + 1);
+      const t = normalizarTematica(experience.tematica);
+      if (t) conteo.set(t, (conteo.get(t) ?? 0) + 1);
     }
     return [...conteo.entries()]
       .map(([nombre, cantidad]) => ({ nombre, cantidad }))
@@ -186,7 +188,7 @@ export const ExperiencesScreen = ({ experiences, participant, onStartExperience,
                 )}
               </div>
 
-              <div className="flex items-center gap-4 text-[#c9c5d0] font-label-code text-[11px] pt-1">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[#c9c5d0] font-label-code text-[11px] pt-1">
                 <span className="flex items-center gap-1">
                   <span className="material-symbols-outlined text-[14px]">timer</span>
                   {exp.duracion} min
@@ -198,7 +200,7 @@ export const ExperiencesScreen = ({ experiences, participant, onStartExperience,
                 {exp.tematica && (
                   <span className="flex items-center gap-1">
                     <span className="material-symbols-outlined text-[14px]">sell</span>
-                    {exp.tematica}
+                    {normalizarTematica(exp.tematica)}
                   </span>
                 )}
               </div>
@@ -206,7 +208,7 @@ export const ExperiencesScreen = ({ experiences, participant, onStartExperience,
               <button
                 type="button"
                 onClick={() => onStartExperience(exp)}
-                className={`w-full h-12 rounded-xl font-headline-sm text-[14px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer ${estilo.boton}`}
+                className={`w-full min-h-12 py-2 rounded-xl font-headline-sm text-[14px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer ${estilo.boton}`}
               >
                 <span>Iniciar desafío</span>
                 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>

@@ -5,7 +5,7 @@
 // (que el cliente no puede leer), si la participación sigue en curso y dentro de tiempo, y si el
 // desafío anterior ya estaba resuelto. Una respuesta incorrecta = escritura rechazada (permission-denied).
 import {
-  addDoc, collection, collectionGroup, doc, getDoc, getDocFromServer, getDocs, onSnapshot, serverTimestamp, setDoc,
+  addDoc, collection, collectionGroup, doc, getDoc, getDocFromServer, getDocs, onSnapshot, serverTimestamp, setDoc, writeBatch,
 } from "firebase/firestore";
 import { auth, db } from "../firebase.js";
 import { normalizarRespuesta } from "../utils/normalizar.js";
@@ -149,6 +149,17 @@ export function subscribeConsultas(participacionId, onData, onError) {
     },
     (err) => onError?.(err)
   );
+}
+
+/** SOLO ADMIN — borra todo el ranking (lotes de 500, el máximo por batch). @returns {Promise<number>} */
+export async function resetRanking() {
+  const snap = await getDocs(collection(db, "ranking"));
+  for (let i = 0; i < snap.docs.length; i += 500) {
+    const batch = writeBatch(db);
+    snap.docs.slice(i, i + 500).forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }
+  return snap.size;
 }
 
 /** GAM05 — Ranking global en tiempo real: más puntos primero; empate => menor tiempo acumulado. */

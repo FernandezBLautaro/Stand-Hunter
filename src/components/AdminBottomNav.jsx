@@ -1,8 +1,8 @@
 const ITEMS = [
   { section: 'experiencias', icono: 'local_activity', label: 'Experiencias' },
   { section: 'inventario', icono: 'inventory_2', label: 'Inventario' },
-  { section: 'premios', icono: 'military_tech', label: 'Premios', pendiente: true },
-  { section: 'canje', icono: 'currency_exchange', label: 'Canje', pendiente: true },
+  { section: 'premios', icono: 'military_tech', label: 'Premios' },
+  { section: 'canje', icono: 'currency_exchange', label: 'Canje' },
 ];
 
 /**
@@ -10,7 +10,7 @@ const ITEMS = [
  * @param {{ section: 'experiencias' | 'inventario', onNavigate: (section: string) => void }} props
  */
 export const AdminBottomNav = ({ section, onNavigate }) => (
-  <nav className="fixed bottom-0 w-full z-50 pb-safe bg-[#0e0b21]/85 backdrop-blur-xl shadow-[0_-4px_24px_rgba(0,0,0,0.5)]">
+  <nav aria-label="Administración" className="fixed bottom-0 w-full z-50 pb-safe bg-[#0e0b21]/85 backdrop-blur-xl shadow-[0_-4px_24px_rgba(0,0,0,0.5)]">
     <div className="max-w-[480px] mx-auto h-16 px-1 flex items-center justify-around">
       {ITEMS.map((item) => {
         const activo = item.section === section;
@@ -20,8 +20,9 @@ export const AdminBottomNav = ({ section, onNavigate }) => (
             type="button"
             disabled={item.pendiente}
             onClick={() => onNavigate(item.section)}
+            aria-label={item.label}
             aria-current={activo ? 'page' : undefined}
-            className={`flex-1 min-h-[44px] flex flex-col items-center justify-center gap-0.5 ${
+            className={`flex-1 min-w-0 min-h-[44px] flex flex-col items-center justify-center gap-0.5 ${
               item.pendiente
                 ? 'text-[#c9c5d0]/35 cursor-not-allowed'
                 : activo
@@ -30,7 +31,7 @@ export const AdminBottomNav = ({ section, onNavigate }) => (
             }`}
           >
             <span className="material-symbols-outlined text-[22px]">{item.icono}</span>
-            <span className="text-[11px] tracking-tight">{item.label}</span>
+            <span className="max-[299px]:hidden max-w-full truncate text-[11px] tracking-tight">{item.label}</span>
           </button>
         );
       })}

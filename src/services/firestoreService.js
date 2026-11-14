@@ -35,7 +35,7 @@ import {
   deleteDoc, onSnapshot, query, where, serverTimestamp, writeBatch
 } from "firebase/firestore";
 import { auth, db } from "../firebase";
-import { normalizarRespuesta, compactar, parseCriterios } from "../utils/normalizar.js";
+import { normalizarRespuesta, compactar, parseCriterios, normalizarTematica } from "../utils/normalizar.js";
 import { deleteParticipationsByExperience } from "./participationService.js";
 
 const COLLECTION = "experiences";
@@ -165,7 +165,7 @@ function sanitize(data, { partial = false } = {}) {
     out.locacion = String(data.locacion ?? "").trim().slice(0, 120);
   }
   if (!partial || has("tematica")) {
-    out.tematica = String(data.tematica ?? "").trim().slice(0, 40);
+    out.tematica = normalizarTematica(data.tematica).slice(0, 40);
   }
   if (!partial || has("imagenUrl")) {
     const url = String(data.imagenUrl ?? "").trim().slice(0, 500);
@@ -416,8 +416,6 @@ export async function seedExperiences() {
 
 export function describeFirestoreError(err) {
   switch (err?.code) {
-    case "permission-denied":
-      return "Sin permisos en Firestore. Verificá que las reglas estén desplegadas y que tu sesión tenga el claim admin.";
     case "unavailable":
       return "Sin conexión con Firestore. Reintentá en unos segundos.";
     case "permission-denied":

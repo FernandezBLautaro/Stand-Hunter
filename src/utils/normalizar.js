@@ -27,3 +27,9 @@ export function normalizarRespuesta(tipo, raw) {
   }
   return normalizarTexto(r);
 }
+
+/** "ESPIONAGE" / "espionage" -> "Espionage". Conserva tildes. */
+export const normalizarTematica = (s) => {
+  const t = String(s ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};

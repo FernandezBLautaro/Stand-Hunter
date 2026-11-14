@@ -80,7 +80,7 @@ export const RegistrationModal = ({ isOpen, onClose, onCancel, user, profile, is
 
   const shell = (children) => (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-[#0e0b21]/90 backdrop-blur-xl flex items-center justify-center p-4">
-      <div className="relative w-full max-w-md rounded-2xl bg-[#131027] border border-[#00eefc]/30 p-5 shadow-[0_0_40px_rgba(0,0,0,0.8)] overflow-hidden my-6">
+      <div role="dialog" aria-modal="true" aria-label="Cuenta de agente" className="relative w-full max-w-md rounded-2xl bg-[#131027] border border-[#00eefc]/30 p-5 shadow-[0_0_40px_rgba(0,0,0,0.8)] overflow-hidden my-6">
         <button
           type="button"
           onClick={onCancel ?? onClose}
@@ -157,21 +157,22 @@ export const RegistrationModal = ({ isOpen, onClose, onCancel, user, profile, is
       </div>
 
       {errorMsg && (
-        <div className="mb-3 p-2.5 rounded-lg bg-[#93000a]/60 border border-[#ffb4ab]/40 text-[#ffdad6] text-xs">{errorMsg}</div>
+        <div role="alert" className="mb-3 p-2.5 rounded-lg bg-[#93000a]/60 border border-[#ffb4ab]/40 text-[#ffdad6] text-xs">{errorMsg}</div>
       )}
       {infoMsg && (
-        <div className="mb-3 p-2.5 rounded-lg bg-[#0e0b21] border border-[#00eefc]/40 text-[#7df4ff] text-xs">{infoMsg}</div>
+        <div role="status" className="mb-3 p-2.5 rounded-lg bg-[#0e0b21] border border-[#00eefc]/40 text-[#7df4ff] text-xs">{infoMsg}</div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {mode === 'register' && (
           <div>
-            <label className="text-[11px] text-[#00eefc] uppercase font-semibold tracking-wider block mb-1">
+            <label htmlFor="reg-nick" className="text-[11px] text-[#00eefc] uppercase font-semibold tracking-wider block mb-1">
               Nombre o nickname *
             </label>
             <div className="relative flex items-center">
               <span className="absolute left-3 text-[#c9c5d0] material-symbols-outlined text-[18px]">alternate_email</span>
               <input
+                id="reg-nick"
                 type="text" required maxLength={40} value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 placeholder="Ej. CyberHunter_99"
@@ -190,10 +191,11 @@ export const RegistrationModal = ({ isOpen, onClose, onCancel, user, profile, is
         )}
 
         <div>
-          <label className="text-[11px] text-[#00eefc] uppercase font-semibold tracking-wider block mb-1">Email *</label>
+          <label htmlFor="reg-email" className="text-[11px] text-[#00eefc] uppercase font-semibold tracking-wider block mb-1">Email *</label>
           <div className="relative flex items-center">
             <span className="absolute left-3 text-[#c9c5d0] material-symbols-outlined text-[18px]">mail</span>
             <input
+              id="reg-email"
               type="email" required autoComplete="email" value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="tu.correo@ejemplo.com"
@@ -203,10 +205,11 @@ export const RegistrationModal = ({ isOpen, onClose, onCancel, user, profile, is
         </div>
 
         <div>
-          <label className="text-[11px] text-[#00eefc] uppercase font-semibold tracking-wider block mb-1">Contraseña *</label>
+          <label htmlFor="reg-pass" className="text-[11px] text-[#00eefc] uppercase font-semibold tracking-wider block mb-1">Contraseña *</label>
           <div className="relative flex items-center">
             <span className="absolute left-3 text-[#c9c5d0] material-symbols-outlined text-[18px]">lock</span>
             <input
+              id ="reg-pass"
               type="password" required minLength={6}
               autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
               value={password}

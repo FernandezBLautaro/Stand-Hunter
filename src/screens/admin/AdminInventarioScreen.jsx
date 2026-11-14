@@ -736,7 +736,7 @@ export default function AdminInventarioScreen({ onClose, onNavigate }) {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="font-headline-sm text-[18px] font-semibold text-center">{qrFor.nombre}</h2>
-            <div className="w-56 h-56 bg-white rounded-xl p-2 flex items-center justify-center">
+            <div className="w-56 max-w-full aspect-square bg-white rounded-xl p-2 flex items-center justify-center">
               {qrUrl ? (
                 <img src={qrUrl} alt={`Código QR de ${qrFor.nombre}`} className="w-full h-full" />
               ) : (

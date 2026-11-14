@@ -1,4 +1,4 @@
-// version 0.4
+// version 0.5
 rules_version = '2';
 
 service cloud.firestore {
@@ -189,9 +189,9 @@ service cloud.firestore {
     match /ranking/{uid} {
       allow read: if isAuthenticated();
       allow create, update: if isAuthenticated() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['usuarioId','nickname','puntaje','tiempoTotalMs','completadas','ultimaParticipacionId'])
+        && request.resource.data.keys().hasOnly(['usuarioId','usuarioNickname','puntaje','tiempoTotalMs','completadas','ultimaParticipacionId'])
         && request.resource.data.usuarioId == uid
-        && request.resource.data.nickname is string && request.resource.data.nickname.size() <= 40
+        && request.resource.data.usuarioNickname is string && request.resource.data.usuarioNickname.size() <= 40
         && request.resource.data.ultimaParticipacionId is string
         && isOwner(request.resource.data.ultimaParticipacionId)
         && get(partPath(request.resource.data.ultimaParticipacionId)).data.estado == 'en_curso'
@@ -215,6 +215,57 @@ service cloud.firestore {
     match /elementos_fisicos/{id} {
       allow read: if isAuthenticated();
       allow create, update, delete: if isAdmin();
+    }
+
+    // Sprint 5 — recompensas (ADM18) y canje seguro (GAM02 / ADM21).
+    function recompensaOk(rid, pid, nombre) {
+      let r = get(/databases/$(database)/documents/recompensas/$(rid)).data;
+      return r.oculta == false && r.stockDisponible > 0 && r.nombre == nombre
+        && r.get('experienciaId', '') == get(partPath(pid)).data.experienciaId
+        && r.puntosRequeridos <= get(partPath(pid)).data.puntajeFinal;
+    }
+
+    // Vigencia de los canjes (días desde la creación; 0 o sin documento = no vencen). La fija el admin.
+    function canjeVigente(c) {
+      let cfg = /databases/$(database)/documents/config/canje;
+      return !exists(cfg) || get(cfg).data.get('vigenciaDias', 0) == 0
+        || request.time.toMillis() <= c.creadoEl.toMillis() + get(cfg).data.vigenciaDias * 86400000;
+    }
+
+    match /config/{id} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /recompensas/{id} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // id = id de la participación: un único canje por partida.
+    match /canjes/{id_participacion} {
+      allow read: if isAdmin()
+        || (isAuthenticated() && (resource == null || resource.data.usuarioId == request.auth.uid));
+
+      allow create: if isOwner(id_participacion)
+        && get(partPath(id_participacion)).data.estado == 'completada'
+        && request.resource.data.keys().hasOnly(
+             ['participacionId','usuarioId','recompensaId','recompensaNombre','estadoEntrega','creadoEl','fechaCanje'])
+        && request.resource.data.participacionId == id_participacion
+        && request.resource.data.usuarioId == request.auth.uid
+        && request.resource.data.estadoEntrega == 'pendiente'
+        && request.resource.data.creadoEl == request.time
+        && request.resource.data.fechaCanje == null
+        && recompensaOk(request.resource.data.recompensaId, id_participacion, request.resource.data.recompensaNombre);
+
+      allow update: if isAdmin()
+        && onlyChanges(['estadoEntrega','fechaCanje'])
+        && resource.data.estadoEntrega == 'pendiente'
+        && request.resource.data.estadoEntrega == 'realizado'
+        && request.resource.data.fechaCanje == request.time
+        && canjeVigente(resource.data);
+
+      allow delete: if isAdmin();
     }
   }
 }

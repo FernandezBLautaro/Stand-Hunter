@@ -70,7 +70,7 @@ export async function findActiveParticipation(usuarioId, experienciaId = null) {
  * DAT02 — Cierra una participación en curso al completarla, abandonarla o
  * agotarse el tiempo: guarda momento de fin, tiempo total y estado final.
  */
-export async function finishParticipation(participationId, { estado, startedAtMs, puntajeFinal = null, usuarioId, nickname } = {}) {
+export async function finishParticipation(participationId, { estado, startedAtMs, puntajeFinal = null, usuarioId, usuarioNickname } = {}) {
   if (!participationId) throw new Error("Falta el id de la participación a finalizar.");
   if (!ESTADOS_PARTICIPACION.includes(estado) || estado === "en_curso") {
     throw new Error(`Estado final inválido: ${estado}`);
@@ -87,7 +87,7 @@ export async function finishParticipation(participationId, { estado, startedAtMs
   if (estado === "completada" && puntajeFinal !== null && usuarioId) {
     batch.set(doc(db, "ranking", usuarioId), {
       usuarioId,
-      nickname: String(nickname ?? "Agente").slice(0, 40),
+      usuarioNickname: String(usuarioNickname ?? "Agente").slice(0, 40),
       puntaje: increment(puntajeFinal),
       tiempoTotalMs: increment(tiempoTotalMs ?? 0),
       completadas: increment(1),

@@ -9,9 +9,9 @@ import { ChallengeProvider, useChallenge } from './context/ChallengeContext.jsx'
 import { SplashScreen } from './screens/SplashScreen.jsx';
 import { OnboardingScreen } from './screens/OnboardingScreen.jsx';
 import { ExperiencesScreen } from './screens/ExperiencesScreen.jsx';
-import { ComingSoonScreen } from './screens/ComingSoonScreen.jsx';
+import { RecompensasScreen } from './screens/RecompensasScreen.jsx';
 import { ChatbotScreen } from './screens/ChatbotScreen.jsx';
-import { ScannerScreen } from './screens/ScannerScreen.jsx';
+import { ParticipationScreen } from './screens/ParticipationScreen.jsx';
 import { RankingScreen } from './screens/RankingScreen.jsx';
 import AdminExperiencesScreen from './screens/admin/AdminExperiencesScreen.jsx';
 //Components
@@ -75,7 +75,7 @@ export default function App() {
     return unsubscribe;
   }, [retryKey]);
 
-  // Estable a propósito: lo consumen el Provider y ScannerScreen sin re-suscribirse en cada render.
+  // Estable a propósito: lo consumen el Provider y ParticipationScreen sin re-suscribirse en cada render.
   const handleServiceError = useCallback((err) => setApiError(toApiError(err)), []);
 
   const handleRetry = () => {
@@ -135,7 +135,7 @@ function AppShell({
       setShowProfileModal(true);
       return;
     }
-    setActiveTab('escaner-ar');
+    setActiveTab('participacion');
     startOrResume(experience); // reanuda si ya estaba en curso y dentro de tiempo
   };
 
@@ -144,14 +144,14 @@ function AppShell({
     if (session.user && pendingExperience) {
       const exp = pendingExperience;
       setPendingExperience(null);
-      setActiveTab('escaner-ar');
+      setActiveTab('participacion');
       startOrResume(exp);
     }
   }, [session.user, pendingExperience, startOrResume]);
 
   const handleConcludeExperience = async () => {
     await conclude(puntaje);
-    setActiveTab('experiencias');
+    setActiveTab('recompensas');
   };
 
   const handleAbandonExperience = async () => {
@@ -205,8 +205,8 @@ function AppShell({
               />
             )}
 
-            {activeTab === 'escaner-ar' && (
-              <ScannerScreen
+            {activeTab === 'participacion' && (
+              <ParticipationScreen
                 onBack={() => setActiveTab('experiencias')}
                 onConclude={active ? handleConcludeExperience : undefined}
                 onAbandon={active ? handleAbandonExperience : undefined}
@@ -218,18 +218,14 @@ function AppShell({
             {activeTab === 'asistente-ia' && (
               <ChatbotScreen
                 onBack={() => setActiveTab('experiencias')}
-                onGoToScanner={() => setActiveTab('escaner-ar')}
+                onGoToScanner={() => setActiveTab('participacion')}
               />
             )}
 
-            {activeTab === 'ranking' && <RankingScreen experiences={experiences} participant={participant} />}
+            {activeTab === 'ranking' && <RankingScreen participant={participant} isAdmin={isAdmin} />}
 
             {activeTab === 'recompensas' && (
-              <ComingSoonScreen
-                title="Resultados y Recompensas"
-                sprintLabel="Sprint 5"
-                onBack={() => setActiveTab('experiencias')}
-              />
+              <RecompensasScreen participant={participant} onBack={() => setActiveTab('experiencias')} />
             )}
           </>
         )}

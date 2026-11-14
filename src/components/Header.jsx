@@ -2,7 +2,7 @@ import { StandHunterLogo } from './StandHunterLogo';
 
 const tabTitles = {
   experiencias: 'Experiencias',
-  'escaner-ar': 'Escáner AR',
+  participacion: 'Participación en curso',
   'asistente-ia': 'Asistente IA',
   ranking: 'Ranking',
   recompensas: 'Recompensas',
@@ -19,10 +19,10 @@ const tabTitles = {
 export const Header = ({ activeTab, participant, latencyMs = 12, onOpenProfile }) => {
   return (
     <header className="fixed top-0 w-full z-50 pt-safe bg-[#131027]/85 backdrop-blur-xl border-b border-[#00eefc]/15 shadow-[0_1px_12px_rgba(0,0,0,0.45)]">
-      <div className="h-16 px-4 max-w-lg mx-auto flex items-center justify-between gap-2">
+      <div className="min-h-16 px-3 sm:px-4 max-w-lg mx-auto flex items-center justify-between gap-2">
         {/* Brand & Section Label */}
         <div className="flex items-center gap-2.5 min-w-0">
-          <StandHunterLogo size={36} animated={true} />
+          <StandHunterLogo size={36} animated={true} className="shrink-0" />
           <div className="flex flex-col min-w-0">
             <span className="font-headline-sm text-[18px] text-[#e5defe] font-bold tracking-tight truncate leading-none">
               StandHunter
@@ -37,7 +37,7 @@ export const Header = ({ activeTab, participant, latencyMs = 12, onOpenProfile }
         <div className="flex items-center gap-2 flex-shrink-0">
           <div
             title={`Latencia de nodo: ${latencyMs}ms`}
-            className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#0e0b21]/90 text-[#00eefc] border border-[#00eefc]/30 shadow-[0_0_8px_rgba(0,238,252,0.15)]"
+            className="max-[359px]:hidden flex items-center gap-1.5 px-2 py-1 rounded bg-[#0e0b21]/90 text-[#00eefc] border border-[#00eefc]/30 shadow-[0_0_8px_rgba(0,238,252,0.15)]"
           >
             <span className="w-2 h-2 rounded-full bg-[#00eefc] animate-pulse shadow-[0_0_6px_#00eefc]" />
             <span className="font-label-code text-[10px] tracking-widest uppercase font-semibold">

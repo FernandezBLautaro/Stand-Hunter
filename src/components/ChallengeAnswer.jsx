@@ -102,7 +102,7 @@ export const ChallengeAnswer = ({ desafio, disabled = false, busy = false, onSub
         </p>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <input
           type="text"
           value={value}
@@ -115,12 +115,12 @@ export const ChallengeAnswer = ({ desafio, disabled = false, busy = false, onSub
           aria-label={TITULO[tipo]}
           disabled={disabled}
           autoComplete="off"
-          className="flex-1 h-12 bg-[#0e0b21] border border-white/10 rounded-lg px-3 text-[14px] text-[#e5defe] placeholder-[#c9c5d0]/50 focus:outline-none focus:border-[#00eefc] disabled:opacity-40"
+          className="flex-1 min-w-0 basis-40 h-12 bg-[#0e0b21] border border-white/10 rounded-lg px-3 text-[14px] text-[#e5defe] placeholder-[#c9c5d0]/50 focus:outline-none focus:border-[#00eefc] disabled:opacity-40"
         />
         <button
           type="submit"
           disabled={disabled || busy}
-          className="px-4 h-12 rounded-lg bg-[#00eefc] text-[#002022] text-[13px] font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+          className="px-4 min-h-12 flex-1 basis-28 justify-center whitespace-nowrap rounded-lg bg-[#00eefc] text-[#002022] text-[13px] font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
         >
           <span className={`material-symbols-outlined text-[18px] ${busy ? 'animate-spin' : ''}`}>
             {busy ? 'sync' : 'check'}

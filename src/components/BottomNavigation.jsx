@@ -1,9 +1,9 @@
 const navItems = [
   { id: 'experiencias', label: 'Experiencias', icon: 'explore', availableInSprint1: true },
-  { id: 'escaner-ar', label: 'Escáner AR', icon: 'center_focus_strong', availableInSprint1: true },
+  { id: 'participacion', label: 'Participación', icon: 'center_focus_strong', availableInSprint1: true },
   { id: 'asistente-ia', label: 'Asistente IA', icon: 'smart_toy', availableInSprint1: true },
   { id: 'ranking', label: 'Ranking', icon: 'leaderboard', availableInSprint1: true },
-  { id: 'recompensas', label: 'Recompensas', icon: 'military_tech', availableInSprint1: false },
+  { id: 'recompensas', label: 'Recompensas', icon: 'military_tech', availableInSprint1: true },
 ];
 
 /**
@@ -15,12 +15,10 @@ const navItems = [
  */
 export const BottomNavigation = ({ activeTab, onSelectTab, unclaimedRewards = false }) => {
   return (
-    <nav className="fixed bottom-0 w-full z-50 pb-safe bg-[#131027]/90 backdrop-blur-xl border-t border-[#00eefc]/15 shadow-[0_-1px_16px_rgba(0,0,0,0.45)]">
-      <div className="h-20 max-w-lg mx-auto px-2 flex items-center justify-around">
+    <nav aria-label="Principal" className="fixed bottom-0 w-full z-50 pb-safe bg-[#131027]/90 backdrop-blur-xl border-t border-[#00eefc]/15 shadow-[0_-1px_16px_rgba(0,0,0,0.45)]">
+      <div className="h-20 max-w-lg mx-auto px-1 flex items-center justify-around">
         {navItems.map((item) => {
           const isActive = activeTab === item.id;
-          // Sprint 2 habilita el escáner y Sprint 3 el asistente IA. Recompensas llega en el
-          // Sprint 5 y se muestra bloqueado en vez de roto.
           const isLocked = !item.availableInSprint1;
 
           return (
@@ -29,8 +27,9 @@ export const BottomNavigation = ({ activeTab, onSelectTab, unclaimedRewards = fa
               onClick={() => !isLocked && onSelectTab(item.id)}
               disabled={isLocked}
               title={isLocked ? 'Disponible en un sprint posterior' : undefined}
+              aria-label={item.label}
               aria-current={isActive ? 'page' : undefined}
-              className={`flex flex-col items-center justify-center gap-1 min-w-[68px] min-h-[48px] py-1 px-2 rounded-xl transition-all relative ${
+              className={`flex flex-col items-center justify-center gap-1 flex-1 min-w-0 min-h-[48px] py-1 px-1 rounded-xl transition-all relative ${
                 isLocked
                   ? 'text-[#c9c5d0]/35 cursor-not-allowed'
                   : isActive
@@ -52,7 +51,7 @@ export const BottomNavigation = ({ activeTab, onSelectTab, unclaimedRewards = fa
               >
                 {item.icon}
               </span>
-              <span className="font-label-md text-[11px] truncate tracking-tight">
+              <span className="max-[339px]:hidden max-w-full font-label-md text-[11px] truncate tracking-tight">
                 {item.label}
               </span>
             </button>
