@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
+import { InfoModal } from '../components/InfoModal.jsx';
 import {
-  getUltimaCompletada, countPistas, getOrCreateCanje, getCanjesPendientes, getVigenciaDias,
+  getInsignias, getUltimaCompletada, countPistas, getOrCreateCanje, getCanjesPendientes, getVigenciaDias,
   vencimientoMs, estaVencido, WIN_PREFIX,
 } from '../services/recompensasService.js';
 
@@ -52,6 +53,7 @@ export const RecompensasScreen = ({ participant, onBack }) => {
   const [pend, setPend] = useState(null); // null = vista normal; array = lista de pendientes
   const [sel, setSel] = useState(null);
   const [pendErr, setPendErr] = useState(false);
+  const [insignias, setInsignias] = useState(null); // null = modal cerrado
 
   useEffect(() => {
     getVigenciaDias().then(setDias).catch(() => { });
@@ -82,11 +84,44 @@ export const RecompensasScreen = ({ participant, onBack }) => {
     catch { setPendErr(true); }
   };
 
+  const abrirInsignias = async () => {
+    setPendErr(false);
+    try { setInsignias(await getInsignias(participant.id)); }
+    catch { setPendErr(true); }
+  };
+
   const botonPendientes = participant.registered && (
+    <>
+    <button type="button" onClick={abrirInsignias} className="h-12 rounded-xl border border-[#ff027f]/40 text-[#ffb1c4] text-[13px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer">
+      <span className="material-symbols-outlined text-[18px]">workspace_premium</span>
+      Mis insignias
+    </button>
     <button type="button" onClick={abrirPendientes} className="h-12 rounded-xl border border-[#00eefc]/40 text-[#7df4ff] text-[13px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer">
       <span className="material-symbols-outlined text-[18px]">pending_actions</span>
       Mis canjes pendientes
     </button>
+    <InfoModal
+      isOpen={!!insignias}
+      onClose={() => setInsignias(null)}
+      type="success"
+      icon="workspace_premium"
+      title="Mis insignias"
+      message={`${insignias?.filter((i) => i.ok).length ?? 0} de ${insignias?.length ?? 0} desbloqueadas`}
+      primaryLabel="Cerrar"
+    >
+      <ul className="w-full max-h-64 overflow-y-auto flex flex-col gap-2 text-left">
+        {insignias?.map((i) => (
+          <li key={i.id} className={`flex items-center gap-3 rounded-xl border p-2.5 ${i.ok ? 'border-[#00eefc]/40 bg-[#1a1442]' : 'border-white/10 opacity-40'}`}>
+            <span className="material-symbols-outlined text-[26px] text-[#7df4ff]">{i.ok ? i.icono : 'lock'}</span>
+            <span className="min-w-0">
+              <span className="block text-[13px] font-semibold text-[#e5defe] truncate">{i.nombre}</span>
+              <span className="block text-[11px] text-[#c9c5d0]">{i.desc}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </InfoModal>
+    </>
   );
 
   if (pend) {

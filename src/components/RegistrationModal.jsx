@@ -211,7 +211,6 @@ export const RegistrationModal = ({ isOpen, onClose, onCancel, user, profile, is
             <input
               id ="reg-pass"
               type="password" required minLength={6}
-              autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Mínimo 6 caracteres"

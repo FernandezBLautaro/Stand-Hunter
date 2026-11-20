@@ -31,10 +31,10 @@
 // Este servicio valida y normaliza antes de escribir para no guardar basura.
 
 import {
-  collection, doc, getDoc, getDocs, setDoc, updateDoc,
+  collection, doc, getDoc, getDocs, updateDoc,
   deleteDoc, onSnapshot, query, where, serverTimestamp, writeBatch
 } from "firebase/firestore";
-import { auth, db } from "../firebase";
+import { db } from "../firebase";
 import { normalizarRespuesta, compactar, parseCriterios, normalizarTematica } from "../utils/normalizar.js";
 import { deleteParticipationsByExperience } from "./participationService.js";
 

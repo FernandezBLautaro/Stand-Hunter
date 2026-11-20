@@ -1,15 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-// Validacion futura
-// import {
-//   subscribeAdminState,
-//   loginAdmin,
-//   logoutAdmin,
-//   describeAuthError,
-// } from "../../services/adminService.js";
-import {
-  subscribeExperiences, createExperience, updateExperience, setExperienceActive, deleteExperience, seedExperiences,
+import { subscribeExperiences, createExperience, updateExperience, setExperienceActive, deleteExperience, seedExperiences,
   newChallenge, getSecretos, describeFirestoreError, TIPOS_VALIDACION, DIFICULTAD_LABEL, calcular_Duracion_Dificultad_Y_PuntosEstimados,
 } from "../../services/firestoreService.js";
+import { subscribeTodosElementos, normalizeCode } from "../../services/elementosService.js";
 import { getUsoPistas } from "../../services/challengeService.js";
 import { subscribeParticipations, summarizeByExperience } from "../../services/participationService.js";
 import { AdminBottomNav } from "../../components/AdminBottomNav.jsx";
@@ -70,10 +63,20 @@ function AdminPanel({ onClose, onNavigate }) {
   const [toast, setToast] = useState({ visible: false, mensaje: "", error: false });
   const toastTimer = useRef(null);
   const [participations, setParticipations] = useState([]);
+  const [elementos, setElementos] = useState([]);
   const statsByExp = useMemo(() => summarizeByExperience(participations), [participations]);
   const calculado = useMemo(() => calcular_Duracion_Dificultad_Y_PuntosEstimados(draft.desafios), [draft.desafios]);
 
   useEffect(() => subscribeParticipations(setParticipations, () => { }), []);
+  useEffect(() => subscribeTodosElementos(setElementos, () => { }), []);
+
+  // ADM17 — elementos físicos que intervienen en la experiencia (sin repetir, aunque sirvan a varios desafíos).
+  const elementosExp = useMemo(
+    () => [...new Set(draft.desafios.map((d) => normalizeCode(d.elementoFisicoId)).filter(Boolean))].map(
+      (c) => elementos.find((e) => e.codigoIdentificador === c) ?? { codigoIdentificador: c, nombre: "Sin registrar en el inventario" }
+    ),
+    [draft.desafios, elementos]
+  );
   useEffect(() => () => clearTimeout(toastTimer.current), []);
 
   const showToast = useCallback((mensaje, error = false) => {
@@ -141,6 +144,15 @@ function AdminPanel({ onClose, onNavigate }) {
 
   const closeEditor = () => setEditorOpen(false);
 
+  // ADM05 — el borrador ya trae desafíos y respuestas (openEditor las cargó): sin id, "Guardar" crea una experiencia nueva y oculta.
+  const duplicate = () => {
+    setDraft((d) => ({ ...d, id: null, nombre: `Copia de ${d.nombre}`.slice(0, 80) }));
+    setConfirmDelete(false);
+    setUsoPistas(null);
+    setTab("a");
+    showToast("Copia lista: revisala y tocá «Guardar cambios». Nace oculta.");
+  };
+
   const patchDraft = (patch) => setDraft((d) => ({ ...d, ...patch }));
 
   const updateDesafio = (id, campo, valor) =>
@@ -173,7 +185,7 @@ function AdminPanel({ onClose, onNavigate }) {
   const saveChanges = async () => {
     if (!draft.nombre.trim()) {
       setTab("a");
-      showToast("Ponele un nombre a la experiencia antes de guardar.", true);
+      showToast("El nombre de la experiencia es obligatorio.", true);
       return;
     }
     // ADM09 — un desafío que no puede validarse bloquea el guardado.
@@ -601,6 +613,18 @@ function AdminPanel({ onClose, onNavigate }) {
                 </p>
               </div>
 
+              <div className="bg-[#0e0b21] p-3 rounded-xl border border-[#00eefc]/20 flex flex-col gap-1.5">
+                <span className="text-[12px] text-[#00eefc] font-semibold flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">inventory_2</span>
+                  Elementos del stand ({elementosExp.length})
+                </span>
+                {elementosExp.length === 0 && <span className="text-[12px] text-[#c9c5d0]">Ningún desafío usa elementos físicos.</span>}
+                {elementosExp.map((e) => (
+                  <span key={e.codigoIdentificador} className="text-[12px] text-[#c9c5d0]">
+                    <strong className="text-[#e5defe]">{e.nombre}</strong> · {e.codigoIdentificador}{e.ubicacion ? ` · ${e.ubicacion}` : ""}
+                  </span>
+                ))}
+              </div>
               <div>
                 <label htmlFor="exp-locacion" className="text-[12px] text-[#c9c5d0] block mb-1">
                   Locación en el stand
@@ -884,6 +908,17 @@ function AdminPanel({ onClose, onNavigate }) {
                 );
               })}
             </div>
+          )}
+
+          {draft.id && (
+            <button
+              type="button"
+              onClick={duplicate}
+              className="self-start flex items-center gap-1 text-[12px] text-[#00eefc] cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[16px]">content_copy</span>
+              Duplicar experiencia
+            </button>
           )}
 
           {draft.id && (

@@ -23,7 +23,6 @@ export function ChallengeProvider({ onError, children }) {
   const [local, setLocal] = useState(() => new Map()); // resueltos confirmados por el servidor, aún sin snapshot
   const [loadingProgreso, setLoadingProgreso] = useState(false);
   const [consultas, setConsultas] = useState(() => new Map()); // desafioId -> consultas al chatbot
-  const [loadedFor, setLoadedFor] = useState(null); // participación cuyo progreso ya llegó del servidor
   const [busy, setBusy] = useState(false);
   const [hintBusy, setHintBusy] = useState(false);
   const busyRef = useRef(false);
@@ -43,7 +42,6 @@ export function ChallengeProvider({ onError, children }) {
       participationId,
       (map) => {
         setProgreso(map);
-        setLoadedFor(participationId);
         setLoadingProgreso(false);
       },
       (err) => {

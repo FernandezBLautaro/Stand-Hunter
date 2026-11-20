@@ -89,6 +89,28 @@ export async function getUltimaCompletada(uid) {
   );
 }
 
+/**
+ * GAM03 — Insignias derivadas de las participaciones completadas (no se guardan: no hay nada que falsificar ni migrar).
+ * shortcut: se recalculan en cada apertura; si crece la lista de logros, mover a un doc ranking/{uid}.insignias.
+ */
+export async function getInsignias(uid) {
+  const snap = await getDocs(
+    query(collection(db, "participaciones"), where("usuarioId", "==", uid), where("estado", "==", "completada"))
+  );
+  const ps = snap.docs.map((d) => d.data());
+  const hitos = [[1, "Primera victoria"], [3, "Cazador"], [5, "Leyenda"]].map(([n, nombre]) => ({
+    id: `h${n}`, nombre, desc: `${n} ${n === 1 ? "experiencia completada" : "experiencias completadas"}`, icono: "military_tech", ok: ps.length >= n,
+  }));
+  const rapido = {
+    id: "rapido", nombre: "Relámpago", desc: "Completá una experiencia en la mitad del tiempo límite", icono: "bolt",
+    ok: ps.some((p) => p.duracionMin && p.tiempoTotalMs != null && p.tiempoTotalMs <= p.duracionMin * 30000),
+  };
+  const porExp = [...new Map(ps.map((p) => [p.experienciaId, p.experienciaNombre])).entries()].map(([id, nombre]) => ({
+    id: `e${id}`, nombre, desc: "Experiencia completada", icono: "workspace_premium", ok: true,
+  }));
+  return [...hitos, rapido, ...porExp];
+}
+
 /** Canjes pendientes del usuario (dos igualdades → sin índice compuesto). */
 export async function getCanjesPendientes(uid) {
   const snap = await getDocs(
