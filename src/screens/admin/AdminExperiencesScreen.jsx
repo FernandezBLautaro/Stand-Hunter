@@ -5,6 +5,7 @@ import { subscribeExperiences, createExperience, updateExperience, setExperience
 import { subscribeTodosElementos, normalizeCode } from "../../services/elementosService.js";
 import { getUsoPistas } from "../../services/challengeService.js";
 import { subscribeParticipations, summarizeByExperience } from "../../services/participationService.js";
+import { subscribeRecompensas, getCanjesTodos } from "../../services/recompensasService.js";
 import { AdminBottomNav } from "../../components/AdminBottomNav.jsx";
 import AdminInventarioScreen from "./AdminInventarioScreen.jsx";
 import AdminPremiosScreen from "./AdminPremiosScreen.jsx";
@@ -25,8 +26,7 @@ const EMPTY_DRAFT = {
   desafios: [],
 };
 
-const inputBase =
-  "w-full bg-[#0e0b21] rounded-lg px-3 text-[#e5defe] text-[14px] placeholder-[#c9c5d0]/50 border border-white/10 focus:outline-none focus:border-[#00eefc] transition-colors";
+const inputBase = "w-full bg-[#0e0b21] rounded-lg px-3 text-[#e5defe] text-[14px] placeholder-[#c9c5d0]/50 border border-white/10 focus:outline-none focus:border-[#00eefc] transition-colors";
 
 /* ================================================================== */
 /* Gate: decide entre login por PIN y panel                            */
@@ -65,6 +65,23 @@ function AdminPanel({ onClose, onNavigate }) {
   const [participations, setParticipations] = useState([]);
   const [elementos, setElementos] = useState([]);
   const statsByExp = useMemo(() => summarizeByExperience(participations), [participations]);
+  // DAT06 — estadísticas: horas pico y stock libre de premios.
+  const [recompensas, setRecompensas] = useState([]);
+  const [canjes, setCanjes] = useState([]);
+  useEffect(() => subscribeRecompensas(setRecompensas, () => { }), []);
+  // shortcut: los canjes se leen una vez al abrir el panel; reabrirlo para refrescar. Si crecen, pasar a un contador en config/.
+  useEffect(() => { getCanjesTodos().then(setCanjes).catch(() => { }); }, []);
+  const horas = useMemo(() => {
+    const h = Array(24).fill(0);
+    participations.forEach((p) => { const ms = p.momentoInicio?.toMillis?.(); if (ms) h[new Date(ms).getHours()]++; });
+    return h;
+  }, [participations]);
+  const picos = horas.map((n, h) => [h, n]).filter(([, n]) => n).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const pendientes = useMemo(() => {
+    const m = new Map();
+    canjes.filter((c) => c.estadoEntrega === "pendiente").forEach((c) => m.set(c.recompensaId, (m.get(c.recompensaId) ?? 0) + 1));
+    return m;
+  }, [canjes]);
   const calculado = useMemo(() => calcular_Duracion_Dificultad_Y_PuntosEstimados(draft.desafios), [draft.desafios]);
 
   useEffect(() => subscribeParticipations(setParticipations, () => { }), []);
@@ -354,6 +371,32 @@ function AdminPanel({ onClose, onNavigate }) {
             Los cambios se guardan en Firestore y se reflejan en la PWA al instante.
           </p>
         </div>
+
+        <section className="mx-4 my-2 p-3 rounded-xl bg-[#0e0b21] border border-[#00eefc]/20 flex flex-col gap-2 text-[12px] text-[#c9c5d0]">
+          <span className="text-[#00eefc] font-semibold flex items-center gap-1">
+            <span className="material-symbols-outlined text-[14px]">query_stats</span>
+            Estadísticas de participación
+          </span>
+          <span>
+            Participaciones: <strong className="text-[#e5defe]">{participations.length}</strong> · Horas pico:{" "}
+            <strong className="text-[#e5defe]">{picos.length ? picos.map(([h, n]) => `${h}:00 (${n})`).join(", ") : "—"}</strong>
+          </span>
+          <div className="flex items-end gap-px h-10" role="img" aria-label="Participaciones por hora del día">
+            {horas.map((n, h) => (
+              <div key={h} title={`${h}:00 — ${n}`} className="flex-1 rounded-sm bg-[#00eefc]"
+                style={{ height: `${(n / Math.max(1, ...horas)) * 100}%`, minHeight: 2, opacity: n ? 1 : 0.2 }} />
+            ))}
+          </div>
+          {recompensas.map((r) => {
+            const pend = pendientes.get(r.id) ?? 0;
+            return (
+              <span key={r.id}>
+                <strong className="text-[#e5defe]">{r.nombre}</strong>: {r.stockDisponible} en stock · {pend} por retirar →{" "}
+                <strong className={r.stockDisponible - pend > 0 ? "text-[#7df4ff]" : "text-[#ff027f]"}>{r.stockDisponible - pend} libres</strong>
+              </span>
+            );
+          })}
+        </section>
 
         {loadError && (
           <div className="mx-4 my-2 p-3 rounded-xl bg-[#3e001a]/80 border border-[#ff027f]/50 text-[#ffdad6] text-[13px]">

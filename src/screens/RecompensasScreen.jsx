@@ -69,8 +69,8 @@ export const RecompensasScreen = ({ participant, onBack }) => {
       try {
         const p = await getUltimaCompletada(participant.id);
         if (!p) return !off && setSt({ loading: false });
-        const [pistas, premio] = await Promise.all([countPistas(p.id), getOrCreateCanje(p)]);
-        if (!off) setSt({ loading: false, p, pistas, ...premio });
+        const [{ pistas, desafios }, premio] = await Promise.all([countPistas(p.id), getOrCreateCanje(p)]);
+        if (!off) setSt({ loading: false, p, pistas, desafios, ...premio });
       } catch {
         if (!off) setSt({ loading: false, error: true });
       }
@@ -174,7 +174,21 @@ export const RecompensasScreen = ({ participant, onBack }) => {
     );
   }
 
-  const { p, pistas, canje } = st;
+  const { p, pistas, desafios, canje } = st;
+  // ESC11 — habilidades derivadas de datos ya guardados.
+  // shortcut: no se guardan intentos fallidos, así que «lógica» mide autonomía (2 pistas por desafío = 0%); si se registran errores, sumarlos acá.
+  const limite = (p.duracionMin ?? 0) * 60000;
+  const velocidad = limite ? Math.round(100 * Math.max(0, 1 - (p.tiempoTotalMs ?? 0) / limite)) : 0;
+  const logica = desafios ? Math.round(100 * Math.max(0, 1 - pistas / (desafios * 2))) : 0;
+  // GAM06 — compartir resultado (menú nativo; WhatsApp como alternativa en escritorio).
+  const compartir = async () => {
+    const text = `Completé «${p.experienciaNombre}» en StandHunter: ${p.puntajeFinal ?? 0} pts en ${fmt(p.tiempoTotalMs ?? 0)}. ¡Superame!`;
+    const url = window.location.origin;
+    try {
+      if (navigator.share) await navigator.share({ text, url });
+      else window.open(`https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`, '_blank', 'noopener');
+    } catch { /* el usuario canceló */ }
+  };
   const stats = [
     ['Tiempo total', fmt(p.tiempoTotalMs ?? 0)],
     ['Tiempo límite', p.duracionMin ? `${p.duracionMin}:00` : '—'],
@@ -196,6 +210,18 @@ export const RecompensasScreen = ({ participant, onBack }) => {
         ))}
       </div>
 
+      <div className="rounded-xl bg-[#1c192f] border border-[#00eefc]/25 p-3 flex flex-col gap-2 text-left">
+        <p className="text-[12px] text-[#00eefc] font-semibold">Tus habilidades</p>
+        {[['Lógica (autonomía)', logica], ['Velocidad (tiempo sobrante)', velocidad]].map(([k, v]) => (
+          <div key={k}>
+            <div className="flex justify-between text-[12px] text-[#c9c5d0]"><span>{k}</span><strong className="text-[#7df4ff]">{v}%</strong></div>
+            <div role="progressbar" aria-label={k} aria-valuenow={v} aria-valuemin={0} aria-valuemax={100} className="h-1.5 rounded bg-[#2a273e]">
+              <div className="h-full rounded bg-[#00eefc]" style={{ width: `${v}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+
       {canje ? (
         <PremioCard canje={canje} dias={dias} />
       ) : (
@@ -205,6 +231,10 @@ export const RecompensasScreen = ({ participant, onBack }) => {
       )}
 
       {pendErr && <p className="text-[12px] text-[#ffb1c4]">No pudimos cargar tus canjes pendientes.</p>}
+      <button type="button" onClick={compartir} className="h-12 rounded-xl bg-[#ff027f] text-white text-[13px] font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+        <span className="material-symbols-outlined text-[18px]">share</span>
+        Compartir mi resultado
+      </button>
       {botonPendientes}
       <button type="button" onClick={onBack} className="h-12 rounded-xl border border-white/15 text-[#e5defe] text-[13px] font-semibold cursor-pointer">
         Volver al inicio

@@ -125,8 +125,11 @@ export async function countPistas(pid) {
     getDocs(collection(db, "participaciones", pid, "progreso")),
     getDocs(collection(db, "participaciones", pid, "pistas_chat")),
   ]);
-  return prog.docs.reduce((n, d) => n + (d.data().pistasUtilizadas ?? 0), 0) + chat.size;
+  return { pistas: prog.docs.reduce((n, d) => n + (d.data().pistasUtilizadas ?? 0), 0) + chat.size, desafios: prog.size };
 }
+
+/** DAT06 — SOLO ADMIN: todos los canjes (para estimar el stock libre de premios). */
+export const getCanjesTodos = async () => (await getDocs(collection(db, "canjes"))).docs.map((d) => d.data());
 
 /**
  * Devuelve el canje existente (misma QR tras recargar) o crea el canje del premio elegible
